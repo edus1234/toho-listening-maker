@@ -123,13 +123,14 @@
 
 ## 📋 未実装機能（今後の拡張）
 
-- [ ] AI（LLM）を使った高品質なスクリプト生成（OpenAI/Claude API連携）
+- [x] ~~AI（LLM）を使った高品質なスクリプト生成~~ ✅ **実装済み（OpenAI GPT-4o mini）**
 - [x] ~~実際のTTS音声生成~~ ✅ **実装済み（Google TTS）**
 - [ ] スクリプトと問題の履歴保存機能（Cloudflare D1統合）
 - [ ] PDF出力機能（スクリプトと問題の印刷用）
 - [ ] ユーザー認証と個人履歴管理
 - [ ] 複数音声ファイルの高度な結合（ffmpeg使用）
 - [ ] カスタム音声プロファイル保存機能
+- [ ] AIキャッシング機能（同じトピックの再利用）
 
 ## 🎯 推奨される次のステップ
 
@@ -164,6 +165,35 @@ webapp/
 ├── package.json           # 依存関係とスクリプト
 └── README.md              # このファイル
 ```
+
+## 🔑 API キーの設定
+
+### OpenAI API キー（必須）
+
+AIスクリプト生成を使用するには、OpenAI APIキーが必要です。
+
+1. **OpenAI APIキーの取得:**
+   - https://platform.openai.com/api-keys にアクセス
+   - 新しいAPIキーを作成
+   - キーをコピー
+
+2. **`.dev.vars` ファイルに設定:**
+```bash
+# .dev.vars
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxx
+```
+
+3. **本番環境（Cloudflare Pages）:**
+```bash
+npx wrangler pages secret put OPENAI_API_KEY --project-name webapp
+# プロンプトでAPIキーを入力
+```
+
+### Google TTS API キー（設定済み）
+
+音声生成用のGoogle TTS APIキーは既に設定されています。
+
+---
 
 ## 🚀 ローカル開発
 
@@ -318,6 +348,14 @@ pm2 delete webapp
 - **スムーズなアニメーション**: フェードイン効果で心地よい遷移
 
 ## 🔧 主な修正履歴
+
+### v1.5 - OpenAI API統合 (2025-11-03)
+- ✅ **GPT-4o mini統合**: AIによる高品質なスクリプト生成
+- ✅ **インテリジェント問題生成**: スクリプト内容に基づいた関連性の高い問題作成
+- ✅ **CEFR対応**: A1〜C2レベルに応じた語彙・文法の自動調整
+- ✅ **コスト追跡**: トークン使用量と推定コストの表示
+- ✅ **自動話者抽出**: 生成されたスクリプトから話者名を自動抽出
+- ✅ **エラーハンドリング**: API未設定時の適切なエラーメッセージ
 
 ### v1.4 - SSML音声制御とUI改善 (2025-11-03)
 - ✅ **SSML音声指示機能**: 各セリフに細かい音声制御指示を追加可能
