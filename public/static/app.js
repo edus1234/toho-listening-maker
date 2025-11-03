@@ -579,9 +579,15 @@ function renderReviewScreen() {
           <textarea id="scriptEditor" rows="12"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">${currentState.generatedScript}</textarea>
         </div>
-        <p class="text-sm text-gray-600 mt-2">
-          <i class="fas fa-info-circle mr-1"></i>スクリプトは編集できます。必要に応じて修正してください。
-        </p>
+        <div class="mt-3 flex items-center gap-3">
+          <button id="addNarrationButton" type="button"
+                  class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm">
+            <i class="fas fa-book-open mr-2"></i>ナレーション追加
+          </button>
+          <p class="text-sm text-gray-600">
+            <i class="fas fa-info-circle mr-1"></i>ナレーションは [Narration: テキスト] の形式で追加できます（英語・日本語対応）
+          </p>
+        </div>
       </div>
 
       <div class="flex gap-4">
@@ -610,10 +616,22 @@ function attachReviewScreenListeners() {
   const regenerateButton = document.getElementById('regenerateButton');
   const generateAudioButton = document.getElementById('generateAudioButton');
   const scriptEditor = document.getElementById('scriptEditor');
+  const addNarrationButton = document.getElementById('addNarrationButton');
   
   // Update script when edited
   scriptEditor.addEventListener('input', (e) => {
     currentState.generatedScript = e.target.value;
+  });
+  
+  // Add narration
+  addNarrationButton.addEventListener('click', () => {
+    const narrationText = prompt('ナレーションテキストを入力してください（英語または日本語）:', '');
+    if (narrationText && narrationText.trim()) {
+      const currentScript = scriptEditor.value;
+      const newScript = currentScript + '\n\n[Narration: ' + narrationText.trim() + ']';
+      scriptEditor.value = newScript;
+      currentState.generatedScript = newScript;
+    }
   });
   
   backToInputButton.addEventListener('click', () => {
@@ -643,6 +661,17 @@ function renderAudioSettingsScreen() {
       </h3>
       
       <div class="space-y-4">
+        <!-- Gender Selection -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-venus-mars mr-1"></i>性別
+          </label>
+          <select class="speaker-gender w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" data-speaker-index="${index}">
+            <option value="male" ${(speaker.gender || 'male') === 'male' ? 'selected' : ''}>男声</option>
+            <option value="female" ${(speaker.gender || 'male') === 'female' ? 'selected' : ''}>女声</option>
+          </select>
+        </div>
+        
         <!-- Accent Selection -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -672,6 +701,17 @@ function renderAudioSettingsScreen() {
             <span>標準 (1.0x)</span>
             <span>速い (1.5x)</span>
           </div>
+        </div>
+        
+        <!-- Pause After -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-clock mr-1"></i>セリフ後のブランク（秒）
+          </label>
+          <input type="number" min="0" max="10" step="0.5" value="${speaker.pauseAfter || 0}"
+                 class="speaker-pause w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                 data-speaker-index="${index}"
+                 placeholder="例: 1.5">
         </div>
       </div>
     </div>
@@ -711,6 +751,14 @@ function attachAudioSettingsListeners() {
   const backToReviewButton = document.getElementById('backToReviewButton');
   const startAudioGenerationButton = document.getElementById('startAudioGenerationButton');
   
+  // Update gender
+  document.querySelectorAll('.speaker-gender').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].gender = e.target.value;
+    });
+  });
+  
   // Update accent
   document.querySelectorAll('.speaker-accent').forEach(select => {
     select.addEventListener('change', (e) => {
@@ -729,6 +777,15 @@ function attachAudioSettingsListeners() {
       // Update display
       const valueSpan = e.target.closest('.space-y-4').querySelector('.speed-value');
       valueSpan.textContent = speed.toFixed(1) + 'x';
+    });
+  });
+  
+  // Update pause after
+  document.querySelectorAll('.speaker-pause').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      const pause = parseFloat(e.target.value) || 0;
+      currentState.speakers[index].pauseAfter = pause;
     });
   });
   
@@ -835,6 +892,10 @@ function showAudioResult() {
       </div>
       
       <div class="flex gap-4">
+        <button id="downloadMp3Button"
+                class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
+          <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
+        </button>
         <button id="backToInputFromAudioButton"
                 class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
           <i class="fas fa-home mr-2"></i>最初に戻る
@@ -884,6 +945,37 @@ function showAudioResult() {
       // Play selected
       audioElements[index].play();
     });
+  });
+  
+  // Download MP3 button
+  document.getElementById('downloadMp3Button').addEventListener('click', async () => {
+    const btn = document.getElementById('downloadMp3Button');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>結合中...';
+    
+    try {
+      // Call API to merge audio segments
+      const response = await axios.post('/api/merge-audio', {
+        audioSegments: currentState.audioSegments
+      }, { responseType: 'blob' });
+      
+      // Download the merged MP3
+      const url = window.URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'listening-test-' + Date.now() + '.mp3';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
+    } catch (error) {
+      alert('MP3結合エラー: ' + error.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
+    }
   });
   
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {

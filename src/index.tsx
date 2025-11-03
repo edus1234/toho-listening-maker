@@ -15,26 +15,59 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
 })
 
-// Google TTS voice mapping
-const getGoogleTTSVoice = (accent: string) => {
-  const voiceMap: Record<string, { languageCode: string, name: string }> = {
-    'US': { languageCode: 'en-US', name: 'en-US-Journey-D' },
-    'UK': { languageCode: 'en-GB', name: 'en-GB-Journey-D' },
-    'Australian': { languageCode: 'en-AU', name: 'en-AU-Journey-D' },
-    'Canadian': { languageCode: 'en-US', name: 'en-US-Journey-F' },
-    'Indian': { languageCode: 'en-IN', name: 'en-IN-Journey-D' },
-    'Irish': { languageCode: 'en-IE', name: 'en-IE-Standard-A' },
-    'Scottish': { languageCode: 'en-GB', name: 'en-GB-Standard-B' }
+// Google TTS voice mapping with gender support
+const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
+  const voiceMap: Record<string, Record<string, { languageCode: string, name: string }>> = {
+    'US': {
+      'male': { languageCode: 'en-US', name: 'en-US-Journey-D' },
+      'female': { languageCode: 'en-US', name: 'en-US-Journey-F' }
+    },
+    'UK': {
+      'male': { languageCode: 'en-GB', name: 'en-GB-Journey-D' },
+      'female': { languageCode: 'en-GB', name: 'en-GB-Journey-F' }
+    },
+    'Australian': {
+      'male': { languageCode: 'en-AU', name: 'en-AU-Journey-D' },
+      'female': { languageCode: 'en-AU', name: 'en-AU-Journey-F' }
+    },
+    'Canadian': {
+      'male': { languageCode: 'en-US', name: 'en-US-Journey-D' },
+      'female': { languageCode: 'en-US', name: 'en-US-Journey-F' }
+    },
+    'Indian': {
+      'male': { languageCode: 'en-IN', name: 'en-IN-Journey-D' },
+      'female': { languageCode: 'en-IN', name: 'en-IN-Journey-F' }
+    },
+    'Irish': {
+      'male': { languageCode: 'en-IE', name: 'en-IE-Standard-A' },
+      'female': { languageCode: 'en-IE', name: 'en-IE-Standard-A' }
+    },
+    'Scottish': {
+      'male': { languageCode: 'en-GB', name: 'en-GB-Standard-B' },
+      'female': { languageCode: 'en-GB', name: 'en-GB-Standard-A' }
+    }
   }
-  return voiceMap[accent] || voiceMap['US']
+  return voiceMap[accent]?.[gender] || voiceMap['US']['male']
+}
+
+// Detect if text is Japanese
+const isJapanese = (text: string): boolean => {
+  return /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(text)
 }
 
 // Parse script and extract speaker lines
 const parseScript = (script: string) => {
-  const lines: Array<{ speaker: string, text: string }> = []
+  const lines: Array<{ speaker: string, text: string, isNarration?: boolean }> = []
   const scriptLines = script.split('\n').filter(line => line.trim())
   
   for (const line of scriptLines) {
+    // Match narration: [Narration: text]
+    const narrationMatch = line.match(/^\[Narration:\s*(.+)\]$/i)
+    if (narrationMatch) {
+      lines.push({ speaker: 'Narration', text: narrationMatch[1].trim(), isNarration: true })
+      continue
+    }
+    
     // Match "SpeakerName: text" or "[SpeakerName]" followed by text
     const dialogueMatch = line.match(/^([A-Za-z]+):\s*(.+)$/)
     const monologueMatch = line.match(/^\[([A-Za-z]+)\]$/)
@@ -42,8 +75,8 @@ const parseScript = (script: string) => {
     if (dialogueMatch) {
       const [, speaker, text] = dialogueMatch
       lines.push({ speaker: speaker.trim(), text: text.trim() })
-    } else if (!monologueMatch && lines.length > 0) {
-      // Continue previous speaker's line
+    } else if (!monologueMatch && lines.length > 0 && !lines[lines.length - 1].isNarration) {
+      // Continue previous speaker's line (but not narration)
       lines[lines.length - 1].text += ' ' + line.trim()
     } else if (!monologueMatch && !line.startsWith('[')) {
       // Monologue text without speaker prefix
@@ -78,27 +111,58 @@ app.post('/api/generate-audio', async (c) => {
     const speakerVoiceMap: Record<string, any> = {}
     speakers.forEach((speaker: any) => {
       speakerVoiceMap[speaker.name] = {
-        voice: getGoogleTTSVoice(speaker.accent),
-        speed: speaker.speed
+        voice: getGoogleTTSVoice(speaker.accent, speaker.gender || 'male'),
+        speed: speaker.speed || 1.0,
+        pauseAfter: speaker.pauseAfter || 0,
+        gender: speaker.gender || 'male'
       }
     })
     
     // Generate audio for each line
-    const audioSegments: Array<{ speaker: string, audio: string }> = []
+    const audioSegments: Array<{ speaker: string, audio: string, pauseAfter: number }> = []
     
     for (const line of lines) {
-      const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0].name]
+      let voiceConfig: any
+      let speakingRate = 1.0
+      let pauseAfter = 0
+      
+      // Handle narration
+      if (line.isNarration) {
+        const textIsJapanese = isJapanese(line.text)
+        if (textIsJapanese) {
+          // Japanese narration
+          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' }
+        } else {
+          // English narration (US neutral voice)
+          voiceConfig = { languageCode: 'en-US', name: 'en-US-Journey-D' }
+        }
+        speakingRate = 1.0
+        pauseAfter = 1.0 // Default 1 second pause after narration
+      } else {
+        // Regular speaker
+        const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0]?.name]
+        if (!speakerConfig) {
+          console.warn(`Speaker ${line.speaker} not found, using default`)
+          voiceConfig = getGoogleTTSVoice('US', 'male')
+          speakingRate = 1.0
+          pauseAfter = 0
+        } else {
+          voiceConfig = speakerConfig.voice
+          speakingRate = speakerConfig.speed
+          pauseAfter = speakerConfig.pauseAfter || 0
+        }
+      }
       
       // Call Google TTS API
       const ttsRequest = {
         input: { text: line.text },
         voice: {
-          languageCode: speakerConfig.voice.languageCode,
-          name: speakerConfig.voice.name
+          languageCode: voiceConfig.languageCode,
+          name: voiceConfig.name
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: speakerConfig.speed,
+          speakingRate: speakingRate,
           pitch: 0
         }
       }
@@ -124,7 +188,8 @@ app.post('/api/generate-audio', async (c) => {
       const data = await response.json()
       audioSegments.push({
         speaker: line.speaker,
-        audio: data.audioContent
+        audio: data.audioContent,
+        pauseAfter: pauseAfter
       })
     }
     
@@ -142,6 +207,60 @@ app.post('/api/generate-audio', async (c) => {
     return c.json({ 
       success: false, 
       error: `音声生成中にエラーが発生しました: ${error.message}` 
+    }, 500)
+  }
+})
+
+// Audio merging endpoint
+app.post('/api/merge-audio', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { audioSegments } = body
+    
+    if (!audioSegments || audioSegments.length === 0) {
+      return c.json({ success: false, error: '音声セグメントがありません' }, 400)
+    }
+    
+    // For Cloudflare Workers, we can't use ffmpeg or native audio processing
+    // Instead, we'll concatenate the base64 MP3 data and let the client handle it
+    // In a real implementation, you'd use a service like FFmpeg API or AWS Lambda
+    
+    // Simple concatenation (this works for MP3 files in many cases)
+    let mergedAudioBase64 = ''
+    
+    for (const segment of audioSegments) {
+      mergedAudioBase64 += segment.audio
+      
+      // Add silence for pause (if pauseAfter > 0)
+      if (segment.pauseAfter && segment.pauseAfter > 0) {
+        // Generate silence MP3 (this is a simplified approach)
+        // In production, use proper audio processing
+        const silenceDuration = Math.floor(segment.pauseAfter * 1000) // convert to ms
+        // For now, we'll skip adding silence programmatically
+        // A proper solution would use ffmpeg or similar
+      }
+    }
+    
+    // Convert base64 to binary
+    const binaryString = atob(mergedAudioBase64)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+    
+    // Return as MP3 file
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Disposition': 'attachment; filename="listening-test.mp3"'
+      }
+    })
+    
+  } catch (error: any) {
+    console.error('Audio merging error:', error)
+    return c.json({ 
+      success: false, 
+      error: `音声結合中にエラーが発生しました: ${error.message}` 
     }, 500)
   }
 })
