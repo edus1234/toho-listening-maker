@@ -721,14 +721,15 @@ function renderAudioSettingsScreen() {
             class="line-ssml w-full px-2 py-2 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 font-mono"
             data-line-index="${index}"
             rows="3"
-            placeholder="例:&#10;速く: &lt;prosody rate=&quot;fast&quot;&gt;ここを速く&lt;/prosody&gt;&#10;間: カンマの後に&lt;break time=&quot;0.5s&quot;/&gt;ブレイク&#10;強調: &lt;emphasis level=&quot;strong&quot;&gt;ここを強調&lt;/emphasis&gt;&#10;上げ調子: 文末を&lt;prosody pitch=&quot;+2st&quot;&gt;上げる&lt;/prosody&gt;"
+            placeholder="元のセリフを全文コピーして、SSML タグを挿入してください。&#10;例: I think<break time='0.5s'/> this is <prosody rate='fast'>really</prosody> important<prosody pitch='+5%'>!</prosody>"
           >${line.ssmlInstructions || ''}</textarea>
-          <div class="text-xs text-gray-500 mt-1">
-            <strong>使い方:</strong> 
-            <code class="bg-gray-200 px-1 rounded">rate="fast"</code> 速度, 
-            <code class="bg-gray-200 px-1 rounded">break time="0.5s"</code> 間, 
-            <code class="bg-gray-200 px-1 rounded">pitch="+2st"</code> ピッチ上げ,
-            <code class="bg-gray-200 px-1 rounded">emphasis</code> 強調
+          <div class="text-xs text-gray-500 mt-1 bg-blue-50 p-2 rounded">
+            <strong>📝 使い方:</strong><br/>
+            • セリフを全文コピーして、SSML タグを挿入<br/>
+            • <code class="bg-white px-1 rounded">&lt;break time="0.5s"/&gt;</code> カンマやピリオドの後に間を入れる<br/>
+            • <code class="bg-white px-1 rounded">&lt;prosody rate="fast"&gt;テキスト&lt;/prosody&gt;</code> 速度変更（x-slow/slow/medium/fast/x-fast）<br/>
+            • <code class="bg-white px-1 rounded">&lt;prosody pitch="+5%"&gt;テキスト&lt;/prosody&gt;</code> ピッチ変更（上げ調子など）<br/>
+            • <code class="bg-white px-1 rounded">&lt;emphasis level="strong"&gt;テキスト&lt;/emphasis&gt;</code> 強調
           </div>
         </div>
       </div>

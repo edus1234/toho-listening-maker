@@ -127,15 +127,20 @@ app.post('/api/generate-audio', async (c) => {
         return text
       }
       
-      // User provides SSML tags inline, we need to wrap in <speak> tags
-      // Check if instructions already contain full text replacement
+      // If already wrapped in <speak> tags, return as-is
+      if (ssmlInstructions.trim().startsWith('<speak>')) {
+        return ssmlInstructions
+      }
+      
+      // If instructions contain the original text, user is providing full SSML
+      // Wrap it with <speak> tags
       if (ssmlInstructions.includes(text)) {
-        // User provided full SSML with original text
         return `<speak>${ssmlInstructions}</speak>`
       } else {
-        // User provided partial SSML tags, apply to original text
-        // This is a simple approach - user should provide full SSML including text
-        return `<speak>${text}</speak>`
+        // If instructions don't contain text, user is only providing SSML tags
+        // Return the instructions wrapped in <speak> tags
+        // User should write the full text with embedded SSML tags
+        return `<speak>${ssmlInstructions}</speak>`
       }
     }
     
@@ -240,8 +245,8 @@ app.post('/api/generate-audio', async (c) => {
       for (let i = 0; i < questions.length; i++) {
         const question = questions[i]
         
-        // Generate audio for question text
-        const questionText = `Question ${i + 1}. ${question.question}`
+        // Use question text as-is (already contains "Question N:" prefix from generation)
+        const questionText = question.question
         const questionAudio = await generateTTS(questionText, qReaderVoice, qReaderSpeed)
         audioSegments.push({
           speaker: 'Question Reader',
@@ -251,9 +256,8 @@ app.post('/api/generate-audio', async (c) => {
           text: questionText
         })
         
-        // Generate audio for each option
+        // Generate audio for each option (already contain labels like "A) Text")
         for (let j = 0; j < question.options.length; j++) {
-          // Options already contain labels like "A) Text" or "A. Text", so use as-is
           const optionText = question.options[j]
           const optionAudio = await generateTTS(optionText, qReaderVoice, qReaderSpeed)
           audioSegments.push({
