@@ -301,20 +301,38 @@ async function generateScript() {
   
   // Extract number of speakers from otherConditions
   // Check for various patterns: "3人", "3者", "three people", "3 people", etc.
-  let numSpeakers = 2; // default
+  let numSpeakers = 2; // default for dialogue
+  
   if (currentState.formData.otherConditions) {
-    const conditions = currentState.formData.otherConditions;
-    if (conditions.match(/3人|3者|三人|3\s*people|three\s*people/gi)) {
+    const conditions = currentState.formData.otherConditions.toLowerCase();
+    console.log('Other conditions:', currentState.formData.otherConditions);
+    
+    // Check for 3 speakers
+    if (conditions.match(/3人|3者|三人|3\s*people|three\s*people|3\s*名|三名|3\s*speaker|three\s*speaker/gi) ||
+        conditions.includes('3') || conditions.includes('三')) {
       numSpeakers = 3;
-    } else if (conditions.match(/4人|4者|四人|4\s*people|four\s*people/gi)) {
+      console.log('Detected 3 speakers');
+    }
+    // Check for 4 speakers
+    else if (conditions.match(/4人|4者|四人|4\s*people|four\s*people|4\s*名|四名|4\s*speaker|four\s*speaker/gi) ||
+             (conditions.includes('4') || conditions.includes('四'))) {
       numSpeakers = 4;
+      console.log('Detected 4 speakers');
+    }
+    // Check for 5 speakers
+    else if (conditions.match(/5人|5者|五人|5\s*people|five\s*people|5\s*名|五名|5\s*speaker|five\s*speaker/gi) ||
+             (conditions.includes('5') || conditions.includes('五'))) {
+      numSpeakers = 5;
+      console.log('Detected 5 speakers');
     }
   }
   
-  // For dialogue, ensure correct number of speakers
+  // For dialogue, ensure at least 2 speakers
   if (currentState.formData.format === 'dialogue' && numSpeakers < 2) {
     numSpeakers = 2;
   }
+  
+  console.log('Final number of speakers:', numSpeakers);
   
   if (currentState.formData.format === 'monologue') {
     // Generate monologue
@@ -363,7 +381,8 @@ Thank you for listening.`;
     }));
     
     if (isLong) {
-      if (numSpeakers === 3) {
+      if (numSpeakers >= 3) {
+        // 3+ speakers conversation
         currentState.generatedScript = `[Conversation between ${names[0]}, ${names[1]}, and ${names[2]}]
 
 ${names[0]}: Hey guys, have you been following the news about ${topic} lately?
@@ -386,6 +405,7 @@ ${names[2]}: Count me in. If we work together, we can definitely make a differen
 
 ${names[0]}: Excellent. Let's meet next week to plan this out properly.`;
       } else {
+        // 2 speakers conversation
         currentState.generatedScript = `[Conversation between ${names[0]} and ${names[1]}]
 
 ${names[0]}: Hi ${names[1]}, have you heard about the recent developments in ${topic}?
@@ -406,7 +426,8 @@ ${names[1]}: Great idea. I'm looking forward to it.`;
       }
     } else {
       // Short dialogue
-      if (numSpeakers === 3) {
+      if (numSpeakers >= 3) {
+        // 3+ speakers short conversation
         currentState.generatedScript = `[Conversation between ${names[0]}, ${names[1]}, and ${names[2]}]
 
 ${names[0]}: Did you hear about ${topic}?
@@ -419,6 +440,7 @@ ${names[0]}: Agreed. Let's discuss this more later.
 
 ${names[1]}: Sounds good to me.`;
       } else {
+        // 2 speakers short conversation
         currentState.generatedScript = `[Conversation between ${names[0]} and ${names[1]}]
 
 ${names[0]}: Hey ${names[1]}, what do you think about ${topic}?
