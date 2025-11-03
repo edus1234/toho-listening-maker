@@ -15,6 +15,234 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
 })
 
+// OpenAI API - Generate Script
+app.post('/api/generate-script-ai', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { format, topic, keywords, cefrLevel, otherConditions, numSpeakers, speakerNationalities, isLong } = body
+    
+    const OPENAI_API_KEY = c.env?.OPENAI_API_KEY
+    
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your-openai-api-key-here') {
+      return c.json({ 
+        success: false, 
+        error: 'OpenAI APIキーが設定されていません。.dev.varsファイルにOPENAI_API_KEYを設定してください。' 
+      }, 400)
+    }
+    
+    // Build prompt based on format
+    let prompt = ''
+    
+    if (format === 'monologue') {
+      prompt = `You are an English listening test creator for ${cefrLevel} level students.
+
+Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} monologue about "${topic}".
+
+Requirements:
+- CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)
+- Must include these keywords naturally: ${keywords}
+${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
+- Format: [Speaker Name] followed by the speech content
+- Use a single English name for the speaker (e.g., James, Sarah)
+- Write in pure English only (no Japanese)
+- Make it natural and conversational
+
+Example format:
+[James]
+
+Hello, everyone. Today I want to discuss...
+
+(Continue the speech naturally)`
+    } else {
+      // Dialogue
+      prompt = `You are an English listening test creator for ${cefrLevel} level students.
+
+Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} dialogue between ${numSpeakers} people about "${topic}".
+
+Requirements:
+- CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)
+- Number of speakers: ${numSpeakers}
+- Must include these keywords naturally: ${keywords}
+${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
+- Format: [Conversation between Name1, Name2${numSpeakers >= 3 ? ', Name3' : ''}] followed by dialogue lines
+- Use English names for speakers
+- Format each line as "Name: dialogue text"
+- Write in pure English only (no Japanese)
+- Make it natural and conversational
+
+Example format:
+[Conversation between Alice, Bob${numSpeakers >= 3 ? ', Charlie' : ''}]
+
+Alice: Have you heard about...
+
+Bob: Yes, I think...
+
+${numSpeakers >= 3 ? 'Charlie: I agree, and...\n\n' : ''}(Continue the conversation naturally)`
+    }
+    
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are an expert English listening test creator. Always output in pure English without any Japanese text.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.8,
+        max_tokens: 800
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('OpenAI API error:', errorData)
+      return c.json({ 
+        success: false, 
+        error: `OpenAI API エラー: ${errorData.error?.message || 'Unknown error'}` 
+      }, 500)
+    }
+    
+    const data = await response.json()
+    const generatedScript = data.choices[0].message.content.trim()
+    
+    return c.json({
+      success: true,
+      script: generatedScript,
+      model: 'gpt-4o-mini',
+      tokensUsed: data.usage?.total_tokens || 0,
+      estimatedCost: ((data.usage?.prompt_tokens || 0) * 0.15 / 1000000 + (data.usage?.completion_tokens || 0) * 0.60 / 1000000).toFixed(6)
+    })
+    
+  } catch (error: any) {
+    console.error('Script generation error:', error)
+    return c.json({ 
+      success: false, 
+      error: `スクリプト生成中にエラーが発生しました: ${error.message}` 
+    }, 500)
+  }
+})
+
+// OpenAI API - Generate Questions
+app.post('/api/generate-questions-ai', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { script, topic, cefrLevel, numQuestions } = body
+    
+    const OPENAI_API_KEY = c.env?.OPENAI_API_KEY
+    
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your-openai-api-key-here') {
+      return c.json({ 
+        success: false, 
+        error: 'OpenAI APIキーが設定されていません。' 
+      }, 400)
+    }
+    
+    const prompt = `Based on the following English listening script, create ${numQuestions} comprehension questions.
+
+Script:
+${script}
+
+Requirements:
+- CEFR Level: ${cefrLevel}
+- Create ${numQuestions} multiple-choice questions
+- Each question should have 4 options (A, B, C, D)
+- Questions should test comprehension of the main ideas and details
+- Format each question exactly as:
+
+Question 1: [question text]
+A) [option A]
+B) [option B]
+C) [option C]
+D) [option D]
+Correct Answer: [A/B/C/D]
+
+Question 2: ...
+
+(Use this exact format for all questions)`
+    
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are an expert at creating English listening comprehension questions.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('OpenAI API error:', errorData)
+      return c.json({ 
+        success: false, 
+        error: `OpenAI API エラー: ${errorData.error?.message || 'Unknown error'}` 
+      }, 500)
+    }
+    
+    const data = await response.json()
+    const generatedText = data.choices[0].message.content.trim()
+    
+    // Parse questions from response
+    const questions = []
+    const questionBlocks = generatedText.split(/Question \d+:/i).filter(block => block.trim())
+    
+    for (const block of questionBlocks) {
+      const lines = block.trim().split('\n').filter(line => line.trim())
+      
+      if (lines.length >= 5) {
+        const questionText = lines[0].trim()
+        const options = []
+        let correctAnswer = ''
+        
+        for (const line of lines.slice(1)) {
+          if (line.match(/^[A-D]\)/i)) {
+            options.push(line.trim())
+          } else if (line.match(/correct answer/i)) {
+            const match = line.match(/[A-D]/i)
+            if (match) correctAnswer = match[0].toUpperCase()
+          }
+        }
+        
+        if (questionText && options.length === 4 && correctAnswer) {
+          questions.push({
+            question: `Question ${questions.length + 1}: ${questionText}`,
+            options: options,
+            correctAnswer: correctAnswer
+          })
+        }
+      }
+    }
+    
+    return c.json({
+      success: true,
+      questions: questions,
+      model: 'gpt-4o-mini',
+      tokensUsed: data.usage?.total_tokens || 0,
+      estimatedCost: ((data.usage?.prompt_tokens || 0) * 0.15 / 1000000 + (data.usage?.completion_tokens || 0) * 0.60 / 1000000).toFixed(6)
+    })
+    
+  } catch (error: any) {
+    console.error('Question generation error:', error)
+    return c.json({ 
+      success: false, 
+      error: `問題生成中にエラーが発生しました: ${error.message}` 
+    }, 500)
+  }
+})
+
 // Google TTS voice mapping with gender support
 const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
   const voiceMap: Record<string, Record<string, { languageCode: string, name: string }>> = {

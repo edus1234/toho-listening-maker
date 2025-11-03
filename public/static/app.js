@@ -373,36 +373,119 @@ function generateCharacterNames(count) {
   return shuffled.slice(0, count);
 }
 
-// Generate script (mock for now)
+// Generate script with OpenAI API
 async function generateScript() {
   // Show loading
   const appContainer = document.getElementById('app');
   appContainer.innerHTML = `
     <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
       <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-4"></div>
-      <h2 class="text-2xl font-bold text-gray-800 mb-2">スクリプトを生成中...</h2>
-      <p class="text-gray-600">しばらくお待ちください</p>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">AIがスクリプトを生成中...</h2>
+      <p class="text-gray-600" id="generation-status">GPT-4o mini を使用しています...</p>
     </div>
   `;
   
-  // Simulate API call (replace with real API later)
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Mock generated script
   const numQuestions = currentState.formData.questionSettings === 'long' ? 3 : 1;
   const isLong = currentState.formData.questionSettings === 'long';
+  const numSpeakers = currentState.formData.numSpeakers || 2;
+  const speakerNationalities = currentState.formData.speakerNationalities || ['US', 'UK'];
   
-  // Use topic and keywords as-is (keep original input for reference only)
-  const topicInput = currentState.formData.topic || 'environmental issues';
-  const keywordsInput = currentState.formData.keywords || 'climate change, global warming';
-  
-  // For actual script generation, use English equivalents
-  // This is a mock - in production, AI would translate/understand the intent
-  const topic = 'environmental issues'; // Default English topic
-  const keywords = 'climate change, global warming'; // Default English keywords
+  try {
+    // Call OpenAI API for script generation
+    const scriptResponse = await axios.post('/api/generate-script-ai', {
+      format: currentState.formData.format,
+      topic: currentState.formData.topic || 'environmental issues',
+      keywords: currentState.formData.keywords || 'climate change, global warming',
+      cefrLevel: currentState.formData.cefrLevel || 'B1',
+      otherConditions: currentState.formData.otherConditions || '',
+      numSpeakers: numSpeakers,
+      speakerNationalities: speakerNationalities,
+      isLong: isLong
+    });
+    
+    if (!scriptResponse.data.success) {
+      alert('スクリプト生成エラー: ' + scriptResponse.data.error);
+      currentState.screen = 'input';
+      renderScreen();
+      return;
+    }
+    
+    currentState.generatedScript = scriptResponse.data.script;
+    
+    // Extract speaker names from generated script
+    const speakerMatches = currentState.generatedScript.match(/^([A-Za-z]+):/gm);
+    if (speakerMatches && speakerMatches.length > 0) {
+      const uniqueSpeakers = [...new Set(speakerMatches.map(m => m.replace(':', '').trim()))];
+      currentState.speakers = uniqueSpeakers.map((name, i) => ({
+        name: name,
+        accent: speakerNationalities[i] || 'US',
+        speed: 1.0,
+        gender: 'male'
+      }));
+    } else if (currentState.formData.format === 'monologue') {
+      // For monologue, extract speaker name from [Name] format
+      const nameMatch = currentState.generatedScript.match(/^\[([A-Za-z]+)\]/);
+      if (nameMatch) {
+        currentState.speakers = [{
+          name: nameMatch[1],
+          accent: 'US',
+          speed: 1.0,
+          gender: 'male'
+        }];
+      }
+    }
+    
+    console.log(`✅ スクリプト生成完了 - トークン: ${scriptResponse.data.tokensUsed}, コスト: $${scriptResponse.data.estimatedCost}`);
+    
+    // Generate questions if requested
+    if (currentState.formData.createQuestions) {
+      document.getElementById('generation-status').textContent = '問題を生成中...';
+      
+      const questionsResponse = await axios.post('/api/generate-questions-ai', {
+        script: currentState.generatedScript,
+        topic: currentState.formData.topic,
+        cefrLevel: currentState.formData.cefrLevel || 'B1',
+        numQuestions: numQuestions
+      });
+      
+      if (questionsResponse.data.success) {
+        currentState.generatedQuestions = questionsResponse.data.questions;
+        console.log(`✅ 問題生成完了 - トークン: ${questionsResponse.data.tokensUsed}, コスト: $${questionsResponse.data.estimatedCost}`);
+      } else {
+        console.warn('問題生成に失敗しました:', questionsResponse.data.error);
+        // Fall back to mock questions
+        currentState.generatedQuestions = [];
+        for (let i = 1; i <= numQuestions; i++) {
+          currentState.generatedQuestions.push({
+            question: `Question ${i}: What is the main topic discussed in the listening?`,
+            options: ['A) Environmental issues', 'B) Technology advancements', 'C) Education reform', 'D) Sports events'],
+            correctAnswer: 'A'
+          });
+        }
+      }
+    } else {
+      currentState.generatedQuestions = [];
+    }
+    
+    // Move to review screen
+    currentState.screen = 'review';
+    renderScreen();
+    
+  } catch (error) {
+    console.error('Generation error:', error);
+    alert('生成中にエラーが発生しました: ' + (error.response?.data?.error || error.message));
+    currentState.screen = 'input';
+    renderScreen();
+  }
+}
+
+// Legacy mock generation function (kept for fallback)
+async function generateScriptMock() {
+  const numQuestions = currentState.formData.questionSettings === 'long' ? 3 : 1;
+  const isLong = currentState.formData.questionSettings === 'long';
+  const topic = 'environmental issues';
+  const keywords = 'climate change, global warming';
   const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
-  
-  // Use the explicitly set number of speakers from form data
   const numSpeakers = currentState.formData.numSpeakers || 2;
   const speakerNationalities = currentState.formData.speakerNationalities || ['US', 'UK'];
   
