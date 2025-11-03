@@ -1,6 +1,6 @@
 // State management
 let currentState = {
-  screen: 'input', // 'input', 'questionSettings', 'review'
+  screen: 'input', // 'input', 'questionSettings', 'review', 'audioSettings'
   formData: {
     format: 'monologue',
     topic: '',
@@ -11,7 +11,9 @@ let currentState = {
     questionSettings: 'long' // 'long' or 'short'
   },
   generatedScript: '',
-  generatedQuestions: []
+  generatedQuestions: [],
+  speakers: [], // Array of speaker objects with name, accent, speed
+  generatedAudio: null
 };
 
 // Initialize app
@@ -27,6 +29,10 @@ function renderScreen() {
     case 'input':
       appContainer.innerHTML = renderInputScreen();
       attachInputScreenListeners();
+      break;
+    case 'audioSettings':
+      appContainer.innerHTML = renderAudioSettingsScreen();
+      attachAudioSettingsListeners();
       break;
     case 'questionSettings':
       appContainer.innerHTML = renderQuestionSettingsScreen();
@@ -286,9 +292,22 @@ async function generateScript() {
   const keywords = currentState.formData.keywords || 'climate change, global warming';
   const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
   
+  // Extract number of speakers from otherConditions (don't include the text directly)
+  const numSpeakers = currentState.formData.otherConditions && 
+                     (currentState.formData.otherConditions.match(/3人/g) || 
+                      currentState.formData.otherConditions.match(/three people/gi) ||
+                      currentState.formData.otherConditions.match(/3\s*people/gi)) ? 3 : 2;
+  
   if (currentState.formData.format === 'monologue') {
     // Generate monologue
     const speakerName = generateCharacterNames(1)[0];
+    
+    // Store speaker info
+    currentState.speakers = [{
+      name: speakerName,
+      accent: 'US',
+      speed: 1.0
+    }];
     
     if (isLong) {
       currentState.generatedScript = `[${speakerName}]
@@ -297,7 +316,7 @@ Good morning, everyone. Today, I'd like to talk about ${topic}.
 
 This is a topic that has become increasingly important in recent years. ${keywordArray.length > 0 ? 'Terms like ' + keywordArray.join(', ') + ' are now part of our everyday vocabulary.' : 'We hear about it in the news almost every day.'}
 
-Let me share some key points about this subject. First, we need to understand the scope of the issue. It affects not just our generation, but future generations as well. Second, there are concrete steps we can all take to make a difference. ${currentState.formData.otherConditions || 'Small actions, when multiplied by millions of people, can have a significant impact.'}
+Let me share some key points about this subject. First, we need to understand the scope of the issue. It affects not just our generation, but future generations as well. Second, there are concrete steps we can all take to make a difference. Small actions, when multiplied by millions of people, can have a significant impact.
 
 In conclusion, this is a challenge that requires action from all of us. Whether it's through changing our daily habits, supporting relevant policies, or spreading awareness, everyone has a role to play.
 
@@ -307,7 +326,7 @@ Thank you for your attention, and I hope you'll think about what you can do to h
 
 Hello, everyone. Today I want to briefly discuss ${topic}.
 
-${keywordArray.length > 0 ? 'You may have heard terms like ' + keywordArray[0] + ' in the news.' : 'This is something that affects all of us.'} ${currentState.formData.otherConditions || 'It\'s an important issue that we should all be aware of.'}
+${keywordArray.length > 0 ? 'You may have heard terms like ' + keywordArray[0] + ' in the news.' : 'This is something that affects all of us.'} It's an important issue that we should all be aware of.
 
 We all need to think about what we can do to make a positive impact. Every small action counts.
 
@@ -315,11 +334,15 @@ Thank you for listening.`;
     }
   } else {
     // Generate dialogue with character names
-    const numSpeakers = currentState.formData.otherConditions && 
-                       (currentState.formData.otherConditions.match(/3人/g) || 
-                        currentState.formData.otherConditions.match(/three people/gi)) ? 3 : 2;
-    
     const names = generateCharacterNames(numSpeakers);
+    
+    // Store speaker info with default accents
+    const defaultAccents = ['US', 'UK', 'Indian', 'Australian', 'Canadian'];
+    currentState.speakers = names.map((name, i) => ({
+      name: name,
+      accent: defaultAccents[i] || 'US',
+      speed: 1.0
+    }));
     
     if (isLong) {
       if (numSpeakers === 3) {
@@ -329,7 +352,7 @@ ${names[0]}: Hey guys, have you been following the news about ${topic} lately?
 
 ${names[1]}: Yeah, I have actually. It's quite concerning, isn't it?
 
-${names[2]}: Absolutely. I was just reading an article about ${keywordArray[0] || 'the recent developments'}. ${currentState.formData.otherConditions || 'It seems like things are getting more serious.'}
+${names[2]}: Absolutely. I was just reading an article about ${keywordArray[0] || 'the recent developments'}. It seems like things are getting more serious.
 
 ${names[0]}: That's exactly what worries me. What do you think we can do about it?
 
@@ -351,7 +374,7 @@ ${names[0]}: Hi ${names[1]}, have you heard about the recent developments in ${t
 
 ${names[1]}: Yes, I have. It's been all over the news. ${keywordArray.length > 0 ? 'They keep talking about ' + keywordArray[0] + '.' : 'It\'s quite a serious matter.'}
 
-${names[0]}: ${currentState.formData.otherConditions || 'I think we need to pay more attention to this issue.'}
+${names[0]}: I think we need to pay more attention to this issue.
 
 ${names[1]}: I completely agree. What do you think we can do to help?
 
@@ -372,7 +395,7 @@ ${names[0]}: Did you hear about ${topic}?
 
 ${names[1]}: Yeah, it's quite serious. ${keywordArray.length > 0 ? 'Especially the part about ' + keywordArray[0] + '.' : 'We should pay attention to it.'}
 
-${names[2]}: ${currentState.formData.otherConditions || 'I think we all need to do something about it.'}
+${names[2]}: I think we all need to do something about it.
 
 ${names[0]}: Agreed. Let's discuss this more later.
 
@@ -382,7 +405,7 @@ ${names[1]}: Sounds good to me.`;
 
 ${names[0]}: Hey ${names[1]}, what do you think about ${topic}?
 
-${names[1]}: ${keywordArray.length > 0 ? 'I\'ve been reading about ' + keywordArray[0] + '.' : 'It\'s definitely something important.'} ${currentState.formData.otherConditions || 'It affects all of us.'}
+${names[1]}: ${keywordArray.length > 0 ? 'I\'ve been reading about ' + keywordArray[0] + '.' : 'It\'s definitely something important.'} It affects all of us.
 
 ${names[0]}: You're right. We should probably learn more about it.
 
@@ -490,8 +513,206 @@ function attachReviewScreenListeners() {
     generateScript();
   });
   
-  generateAudioButton.addEventListener('click', async () => {
-    alert('音声生成機能は今後実装予定です。\n現在のスクリプト:\n\n' + currentState.generatedScript.substring(0, 150) + '...');
+  generateAudioButton.addEventListener('click', () => {
+    currentState.screen = 'audioSettings';
+    renderScreen();
+  });
+}
+
+// Render audio settings screen
+function renderAudioSettingsScreen() {
+  const speakersHTML = currentState.speakers.map((speaker, index) => `
+    <div class="border-2 border-gray-200 rounded-lg p-4 mb-4">
+      <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+        <i class="fas fa-user mr-2 text-indigo-600"></i>
+        話者${index + 1}: ${speaker.name}
+      </h3>
+      
+      <div class="space-y-4">
+        <!-- Accent Selection -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-globe mr-1"></i>アクセント
+          </label>
+          <select class="speaker-accent w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" data-speaker-index="${index}">
+            <option value="US" ${speaker.accent === 'US' ? 'selected' : ''}>アメリカ英語 (US)</option>
+            <option value="UK" ${speaker.accent === 'UK' ? 'selected' : ''}>イギリス英語 (UK)</option>
+            <option value="Australian" ${speaker.accent === 'Australian' ? 'selected' : ''}>オーストラリア英語</option>
+            <option value="Canadian" ${speaker.accent === 'Canadian' ? 'selected' : ''}>カナダ英語</option>
+            <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド英語</option>
+            <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド英語</option>
+            <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド英語</option>
+          </select>
+        </div>
+        
+        <!-- Speed Control -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-tachometer-alt mr-1"></i>速度: <span class="speed-value">${speaker.speed}x</span>
+          </label>
+          <input type="range" min="0.5" max="1.5" step="0.1" value="${speaker.speed}"
+                 class="speaker-speed w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                 data-speaker-index="${index}">
+          <div class="flex justify-between text-xs text-gray-500 mt-1">
+            <span>遅い (0.5x)</span>
+            <span>標準 (1.0x)</span>
+            <span>速い (1.5x)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  return `
+    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-microphone-alt mr-3 text-indigo-600"></i>
+        音声設定
+      </h2>
+      
+      <p class="text-gray-600 mb-6">
+        各話者のアクセントと話す速度を調整してください。
+      </p>
+      
+      <div class="mb-6">
+        ${speakersHTML}
+      </div>
+      
+      <div class="flex gap-4">
+        <button id="backToReviewButton"
+                class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+          <i class="fas fa-arrow-left mr-2"></i>スクリプトに戻る
+        </button>
+        <button id="startAudioGenerationButton"
+                class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition shadow-md">
+          <i class="fas fa-magic mr-2"></i>音声を生成
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Attach listeners for audio settings screen
+function attachAudioSettingsListeners() {
+  const backToReviewButton = document.getElementById('backToReviewButton');
+  const startAudioGenerationButton = document.getElementById('startAudioGenerationButton');
+  
+  // Update accent
+  document.querySelectorAll('.speaker-accent').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].accent = e.target.value;
+    });
+  });
+  
+  // Update speed
+  document.querySelectorAll('.speaker-speed').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      const speed = parseFloat(e.target.value);
+      currentState.speakers[index].speed = speed;
+      
+      // Update display
+      const valueSpan = e.target.closest('.space-y-4').querySelector('.speed-value');
+      valueSpan.textContent = speed.toFixed(1) + 'x';
+    });
+  });
+  
+  backToReviewButton.addEventListener('click', () => {
+    currentState.screen = 'review';
+    renderScreen();
+  });
+  
+  startAudioGenerationButton.addEventListener('click', async () => {
+    // Show loading
+    const appContainer = document.getElementById('app');
+    appContainer.innerHTML = `
+      <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
+        <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mb-4"></div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">音声を生成中...</h2>
+        <p class="text-gray-600">しばらくお待ちください</p>
+      </div>
+    `;
+    
+    try {
+      // Call API to generate audio
+      const response = await axios.post('/api/generate-audio', {
+        script: currentState.generatedScript,
+        speakers: currentState.speakers
+      });
+      
+      if (response.data.success) {
+        currentState.generatedAudio = response.data.audioUrl;
+        showAudioResult();
+      } else {
+        alert('音声生成に失敗しました: ' + response.data.error);
+        currentState.screen = 'audioSettings';
+        renderScreen();
+      }
+    } catch (error) {
+      alert('音声生成エラー: ' + error.message);
+      currentState.screen = 'audioSettings';
+      renderScreen();
+    }
+  });
+}
+
+// Show audio generation result
+function showAudioResult() {
+  const appContainer = document.getElementById('app');
+  appContainer.innerHTML = `
+    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-check-circle mr-3 text-green-600"></i>
+        音声生成完了
+      </h2>
+      
+      <div class="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6">
+        <p class="text-green-800 mb-4 flex items-center">
+          <i class="fas fa-info-circle mr-2"></i>
+          音声ファイルが正常に生成されました
+        </p>
+        
+        <audio controls class="w-full mb-4">
+          <source src="${currentState.generatedAudio}" type="audio/mpeg">
+          お使いのブラウザは音声再生に対応していません。
+        </audio>
+        
+        <div class="text-sm text-gray-600">
+          <p><strong>話者情報:</strong></p>
+          <ul class="list-disc list-inside mt-2">
+            ${currentState.speakers.map(s => `
+              <li>${s.name}: ${s.accent}アクセント、速度 ${s.speed}x</li>
+            `).join('')}
+          </ul>
+        </div>
+      </div>
+      
+      <div class="flex gap-4">
+        <button id="downloadAudioButton"
+                class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
+          <i class="fas fa-download mr-2"></i>音声をダウンロード
+        </button>
+        <button id="backToInputFromAudioButton"
+                class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+          <i class="fas fa-home mr-2"></i>最初に戻る
+        </button>
+      </div>
+    </div>
+  `;
+  
+  // Attach listeners
+  document.getElementById('downloadAudioButton').addEventListener('click', () => {
+    window.open(currentState.generatedAudio, '_blank');
+  });
+  
+  document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
+    currentState.screen = 'input';
+    currentState.generatedScript = '';
+    currentState.generatedQuestions = [];
+    currentState.speakers = [];
+    currentState.generatedAudio = null;
+    renderScreen();
   });
 }
 

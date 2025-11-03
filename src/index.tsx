@@ -15,6 +15,38 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
 })
 
+// Audio generation endpoint
+app.post('/api/generate-audio', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { script, speakers } = body
+    
+    if (!script || !speakers || speakers.length === 0) {
+      return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
+    }
+    
+    // TODO: Implement actual audio generation using TTS service
+    // For now, return mock response
+    
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // Mock audio URL (replace with actual TTS API integration)
+    const mockAudioUrl = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+    
+    return c.json({
+      success: true,
+      audioUrl: mockAudioUrl,
+      speakers: speakers,
+      message: '音声生成が完了しました（現在はモックデータです）'
+    })
+    
+  } catch (error) {
+    console.error('Audio generation error:', error)
+    return c.json({ success: false, error: '音声生成中にエラーが発生しました' }, 500)
+  }
+})
+
 // Main page
 app.get('/', (c) => {
   return c.html(`
