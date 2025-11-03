@@ -184,6 +184,61 @@ pm2 logs webapp --nostream
 pm2 delete webapp
 ```
 
+## 🎙️ SSML音声指示の使い方
+
+各セリフに対して、SSMLタグを使って細かい音声制御が可能です。
+
+### 基本的な使い方
+
+音声設定画面で、各セリフの「音声指示を追加/編集」ボタンをクリックすると、SSMLタグを入力できるテキストエリアが表示されます。
+
+### 使用可能なSSMLタグ
+
+#### 1. 速度調整
+```xml
+<prosody rate="fast">ここを速く話す</prosody>
+<prosody rate="slow">ここをゆっくり話す</prosody>
+<prosody rate="80%">通常の80%の速度</prosody>
+```
+
+#### 2. ピッチ調整（イントネーション）
+```xml
+<prosody pitch="+2st">ここを上げ調子で</prosody>
+<prosody pitch="-2st">ここを下げ調子で</prosody>
+<prosody pitch="high">高いピッチで</prosody>
+```
+
+#### 3. ブレイク（間）
+```xml
+カンマの後に<break time="0.5s"/>半秒の間を入れる
+ピリオドの後に<break time="1s"/>1秒の間を入れる
+```
+
+#### 4. 強調
+```xml
+<emphasis level="strong">ここを強く強調</emphasis>
+<emphasis level="moderate">ここを適度に強調</emphasis>
+```
+
+#### 5. 複合例
+```xml
+<prosody rate="fast">急いで</prosody><break time="0.3s"/><emphasis level="strong">重要なお知らせ</emphasis>があります。
+```
+
+### 実際の使用例
+
+**セリフ**: "I can't believe it, this is amazing!"
+
+**SSML指示**:
+```xml
+<prosody rate="fast">I can't believe it</prosody><break time="0.5s"/><emphasis level="strong">this is <prosody pitch="+3st">amazing</prosody></emphasis>!
+```
+
+**効果**: 
+- "I can't believe it" を速く話す
+- 0.5秒の間
+- "this is amazing" を強調し、"amazing"を上げ調子で
+
 ## 📝 データモデル
 
 ### スクリプト設定
