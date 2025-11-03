@@ -121,10 +121,40 @@ app.post('/api/generate-audio', async (c) => {
     // Generate audio for each line
     const audioSegments: Array<{ speaker: string, audio: string, pauseAfter: number, type?: string, text?: string }> = []
     
-    // Helper function to generate TTS audio
-    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number) => {
+    // Helper function to apply SSML instructions to text
+    const applySSMLInstructions = (text: string, ssmlInstructions?: string): string => {
+      if (!ssmlInstructions || ssmlInstructions.trim() === '') {
+        return text
+      }
+      
+      // User provides SSML tags inline, we need to wrap in <speak> tags
+      // Check if instructions already contain full text replacement
+      if (ssmlInstructions.includes(text)) {
+        // User provided full SSML with original text
+        return `<speak>${ssmlInstructions}</speak>`
+      } else {
+        // User provided partial SSML tags, apply to original text
+        // This is a simple approach - user should provide full SSML including text
+        return `<speak>${text}</speak>`
+      }
+    }
+    
+    // Helper function to generate TTS audio with SSML support
+    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string) => {
+      let inputContent: any
+      
+      // Check if we should use SSML
+      if (ssmlInstructions && ssmlInstructions.trim() !== '') {
+        // Use SSML input
+        const ssmlText = applySSMLInstructions(text, ssmlInstructions)
+        inputContent = { ssml: ssmlText }
+      } else {
+        // Use plain text input
+        inputContent = { text }
+      }
+      
       const ttsRequest = {
-        input: { text },
+        input: inputContent,
         voice: {
           languageCode: voiceConfig.languageCode,
           name: voiceConfig.name
@@ -185,13 +215,15 @@ app.post('/api/generate-audio', async (c) => {
         }
       }
       
-      const audioContent = await generateTTS(line.text, voiceConfig, speakingRate)
+      // Generate audio with SSML instructions if provided
+      const audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
       audioSegments.push({
         speaker: line.speaker,
         audio: audioContent,
         pauseAfter: pauseAfter,
         type: line.type || 'dialogue',
-        text: line.text
+        text: line.text,
+        ssmlInstructions: line.ssmlInstructions
       })
     }
     
@@ -220,9 +252,9 @@ app.post('/api/generate-audio', async (c) => {
         })
         
         // Generate audio for each option
-        const optionLabels = ['A', 'B', 'C', 'D']
         for (let j = 0; j < question.options.length; j++) {
-          const optionText = `${optionLabels[j]}. ${question.options[j]}`
+          // Options already contain labels like "A) Text" or "A. Text", so use as-is
+          const optionText = question.options[j]
           const optionAudio = await generateTTS(optionText, qReaderVoice, qReaderSpeed)
           audioSegments.push({
             speaker: 'Question Reader',

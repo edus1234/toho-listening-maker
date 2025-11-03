@@ -695,19 +695,41 @@ function parseScriptForSettings(script) {
 
 // Render audio settings screen
 function renderAudioSettingsScreen() {
-  // Render parsed lines with pause settings
+  // Render parsed lines with pause settings and SSML instructions
   const linesHTML = (currentState.parsedLines || []).map((line, index) => `
-    <div class="border-l-4 border-${line.type === 'narration' ? 'purple' : 'blue'}-500 pl-4 mb-3 bg-gray-50 p-3 rounded">
-      <div class="flex items-start justify-between gap-3">
+    <div class="border-l-4 border-${line.type === 'narration' ? 'purple' : 'blue'}-500 pl-4 mb-4 bg-gray-50 p-3 rounded">
+      <div class="flex items-start justify-between gap-3 mb-2">
         <div class="flex-1">
           <div class="font-semibold text-sm text-gray-700">${line.type === 'narration' ? '📖 ナレーション' : '💬 ' + line.speaker}</div>
           <div class="text-gray-600 text-sm mt-1">${line.text}</div>
         </div>
-        <div class="w-32">
+        <div class="w-32 flex-shrink-0">
           <label class="text-xs text-gray-600">後のブランク（秒）</label>
           <input type="number" min="0" max="10" step="0.5" value="${line.pauseAfter || 0}"
                  class="line-pause w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
                  data-line-index="${index}">
+        </div>
+      </div>
+      
+      <!-- SSML Instructions -->
+      <div class="mt-2">
+        <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 mb-1 toggle-ssml-instructions" data-line-index="${index}">
+          <i class="fas fa-cog mr-1"></i>音声指示を追加/編集
+        </button>
+        <div class="ssml-instructions-container hidden" data-line-index="${index}">
+          <textarea 
+            class="line-ssml w-full px-2 py-2 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 font-mono"
+            data-line-index="${index}"
+            rows="3"
+            placeholder="例:&#10;速く: &lt;prosody rate=&quot;fast&quot;&gt;ここを速く&lt;/prosody&gt;&#10;間: カンマの後に&lt;break time=&quot;0.5s&quot;/&gt;ブレイク&#10;強調: &lt;emphasis level=&quot;strong&quot;&gt;ここを強調&lt;/emphasis&gt;&#10;上げ調子: 文末を&lt;prosody pitch=&quot;+2st&quot;&gt;上げる&lt;/prosody&gt;"
+          >${line.ssmlInstructions || ''}</textarea>
+          <div class="text-xs text-gray-500 mt-1">
+            <strong>使い方:</strong> 
+            <code class="bg-gray-200 px-1 rounded">rate="fast"</code> 速度, 
+            <code class="bg-gray-200 px-1 rounded">break time="0.5s"</code> 間, 
+            <code class="bg-gray-200 px-1 rounded">pitch="+2st"</code> ピッチ上げ,
+            <code class="bg-gray-200 px-1 rounded">emphasis</code> 強調
+          </div>
         </div>
       </div>
     </div>
@@ -826,17 +848,6 @@ function renderAudioSettingsScreen() {
             <span>速い (1.5x)</span>
           </div>
         </div>
-        
-        <!-- Pause After -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-clock mr-1"></i>セリフ後のブランク（秒）
-          </label>
-          <input type="number" min="0" max="10" step="0.5" value="${speaker.pauseAfter || 0}"
-                 class="speaker-pause w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                 data-speaker-index="${index}"
-                 placeholder="例: 1.5">
-        </div>
       </div>
     </div>
   `).join('');
@@ -905,12 +916,29 @@ function attachAudioSettingsListeners() {
     };
   }
   
+  // Toggle SSML instructions display
+  document.querySelectorAll('.toggle-ssml-instructions').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.lineIndex);
+      const container = document.querySelector(`.ssml-instructions-container[data-line-index="${index}"]`);
+      container.classList.toggle('hidden');
+    });
+  });
+  
   // Update line pause settings
   document.querySelectorAll('.line-pause').forEach(input => {
     input.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.lineIndex);
       const pause = parseFloat(e.target.value) || 0;
       currentState.parsedLines[index].pauseAfter = pause;
+    });
+  });
+  
+  // Update SSML instructions
+  document.querySelectorAll('.line-ssml').forEach(textarea => {
+    textarea.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.lineIndex);
+      currentState.parsedLines[index].ssmlInstructions = e.target.value;
     });
   });
   
@@ -983,15 +1011,6 @@ function attachAudioSettingsListeners() {
       // Update display
       const valueSpan = e.target.closest('.space-y-4').querySelector('.speed-value');
       valueSpan.textContent = speed.toFixed(1) + 'x';
-    });
-  });
-  
-  // Update speaker pause after
-  document.querySelectorAll('.speaker-pause').forEach(input => {
-    input.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.speakerIndex);
-      const pause = parseFloat(e.target.value) || 0;
-      currentState.speakers[index].pauseAfter = pause;
     });
   });
   
