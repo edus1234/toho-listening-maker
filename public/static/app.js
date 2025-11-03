@@ -794,25 +794,43 @@ function renderAudioSettingsScreen() {
         </div>
       </div>
       
-      <!-- SSML Instructions -->
+      <!-- Natural Language Instructions -->
       <div class="mt-2">
-        <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 mb-1 toggle-ssml-instructions" data-line-index="${index}">
-          <i class="fas fa-cog mr-1"></i>音声指示を追加/編集
+        <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 mb-1 toggle-voice-instructions" data-line-index="${index}">
+          <i class="fas fa-magic mr-1"></i>音声指示を追加/編集
         </button>
-        <div class="ssml-instructions-container hidden" data-line-index="${index}">
-          <textarea 
-            class="line-ssml w-full px-2 py-2 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 font-mono"
-            data-line-index="${index}"
-            rows="3"
-            placeholder="元のセリフを全文コピーして、SSML タグを挿入してください。&#10;例: I think<break time='0.5s'/> this is <prosody rate='fast'>really</prosody> important<prosody pitch='+5%'>!</prosody>"
-          >${line.ssmlInstructions || ''}</textarea>
-          <div class="text-xs text-gray-500 mt-1 bg-blue-50 p-2 rounded">
-            <strong>📝 使い方:</strong><br/>
-            • セリフを全文コピーして、SSML タグを挿入<br/>
-            • <code class="bg-white px-1 rounded">&lt;break time="0.5s"/&gt;</code> カンマやピリオドの後に間を入れる<br/>
-            • <code class="bg-white px-1 rounded">&lt;prosody rate="fast"&gt;テキスト&lt;/prosody&gt;</code> 速度変更（x-slow/slow/medium/fast/x-fast）<br/>
-            • <code class="bg-white px-1 rounded">&lt;prosody pitch="+5%"&gt;テキスト&lt;/prosody&gt;</code> ピッチ変更（上げ調子など）<br/>
-            • <code class="bg-white px-1 rounded">&lt;emphasis level="strong"&gt;テキスト&lt;/emphasis&gt;</code> 強調
+        <div class="voice-instructions-container hidden" data-line-index="${index}">
+          <div class="mb-2">
+            <textarea 
+              class="line-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+              data-line-index="${index}"
+              rows="2"
+              placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒のブランク&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら"
+            >${line.voiceInstructions || ''}</textarea>
+          </div>
+          
+          <div class="flex gap-2 mb-2">
+            <button type="button" class="convert-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-line-index="${index}">
+              <i class="fas fa-magic mr-1"></i>SSMLに変換
+            </button>
+            <button type="button" class="clear-instruction-btn bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-line-index="${index}">
+              <i class="fas fa-times mr-1"></i>クリア
+            </button>
+          </div>
+          
+          <div class="ssml-preview hidden bg-gray-50 p-2 rounded border border-gray-200" data-line-index="${index}">
+            <div class="text-xs font-semibold text-gray-700 mb-1">変換されたSSML:</div>
+            <div class="ssml-preview-text text-xs font-mono text-gray-600 whitespace-pre-wrap">${line.ssmlInstructions || ''}</div>
+          </div>
+          
+          <div class="text-xs text-gray-500 mt-2 bg-blue-50 p-2 rounded">
+            <strong>💡 指示の例:</strong><br/>
+            • <code class="bg-white px-1 rounded">importantの前に0.5秒のブランク</code><br/>
+            • <code class="bg-white px-1 rounded">？を上げ調子のイントネーションで読む</code><br/>
+            • <code class="bg-white px-1 rounded">笑いながら</code><br/>
+            • <code class="bg-white px-1 rounded">fastという単語を速く読む</code><br/>
+            • <code class="bg-white px-1 rounded">全体をゆっくり読む</code><br/>
+            • <code class="bg-white px-1 rounded">カンマの後に0.3秒の間</code>
           </div>
         </div>
       </div>
@@ -1000,11 +1018,11 @@ function attachAudioSettingsListeners() {
     };
   }
   
-  // Toggle SSML instructions display
-  document.querySelectorAll('.toggle-ssml-instructions').forEach(button => {
+  // Toggle voice instructions display
+  document.querySelectorAll('.toggle-voice-instructions').forEach(button => {
     button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.lineIndex);
-      const container = document.querySelector(`.ssml-instructions-container[data-line-index="${index}"]`);
+      const index = parseInt(e.target.closest('button').dataset.lineIndex);
+      const container = document.querySelector(`.voice-instructions-container[data-line-index="${index}"]`);
       container.classList.toggle('hidden');
     });
   });
@@ -1018,11 +1036,76 @@ function attachAudioSettingsListeners() {
     });
   });
   
-  // Update SSML instructions
-  document.querySelectorAll('.line-ssml').forEach(textarea => {
+  // Update voice instructions (natural language)
+  document.querySelectorAll('.line-voice-instruction').forEach(textarea => {
     textarea.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.lineIndex);
-      currentState.parsedLines[index].ssmlInstructions = e.target.value;
+      currentState.parsedLines[index].voiceInstructions = e.target.value;
+    });
+  });
+  
+  // Convert natural language to SSML
+  document.querySelectorAll('.convert-to-ssml-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const index = parseInt(e.target.closest('button').dataset.lineIndex);
+      const line = currentState.parsedLines[index];
+      const instructions = line.voiceInstructions;
+      
+      if (!instructions || !instructions.trim()) {
+        alert('音声指示を入力してください');
+        return;
+      }
+      
+      // Show loading
+      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>変換中...';
+      e.target.disabled = true;
+      
+      try {
+        const response = await axios.post('/api/convert-to-ssml', {
+          text: line.text,
+          instructions: instructions
+        });
+        
+        if (response.data.success) {
+          // Update SSML instructions
+          currentState.parsedLines[index].ssmlInstructions = response.data.ssml;
+          
+          // Show preview
+          const preview = document.querySelector(`.ssml-preview[data-line-index="${index}"]`);
+          const previewText = preview.querySelector('.ssml-preview-text');
+          previewText.textContent = response.data.ssml;
+          preview.classList.remove('hidden');
+          
+          console.log(`✅ SSML変換完了 - トークン: ${response.data.tokensUsed}, コスト: $${response.data.estimatedCost}`);
+        } else {
+          alert('SSML変換エラー: ' + response.data.error);
+        }
+      } catch (error) {
+        alert('SSML変換中にエラーが発生しました: ' + error.message);
+      } finally {
+        // Restore button
+        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>SSMLに変換';
+        e.target.disabled = false;
+      }
+    });
+  });
+  
+  // Clear instruction button
+  document.querySelectorAll('.clear-instruction-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.target.closest('button').dataset.lineIndex);
+      
+      // Clear voice instructions
+      const textarea = document.querySelector(`.line-voice-instruction[data-line-index="${index}"]`);
+      if (textarea) textarea.value = '';
+      
+      // Clear SSML
+      currentState.parsedLines[index].voiceInstructions = '';
+      currentState.parsedLines[index].ssmlInstructions = '';
+      
+      // Hide preview
+      const preview = document.querySelector(`.ssml-preview[data-line-index="${index}"]`);
+      if (preview) preview.classList.add('hidden');
     });
   });
   

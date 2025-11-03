@@ -243,6 +243,106 @@ Question 2: ...
   }
 })
 
+// OpenAI API - Convert Natural Language to SSML
+app.post('/api/convert-to-ssml', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { text, instructions } = body
+    
+    const OPENAI_API_KEY = c.env?.OPENAI_API_KEY
+    
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your-openai-api-key-here') {
+      return c.json({ 
+        success: false, 
+        error: 'OpenAI APIキーが設定されていません。' 
+      }, 400)
+    }
+    
+    if (!text || !instructions) {
+      return c.json({ 
+        success: false, 
+        error: 'テキストと指示の両方が必要です。' 
+      }, 400)
+    }
+    
+    const prompt = `あなたはSSML（Speech Synthesis Markup Language）の専門家です。
+
+元のテキスト:
+"${text}"
+
+ユーザーの自然言語での指示:
+"${instructions}"
+
+この指示に基づいて、元のテキストにSSMLタグを適切に挿入してください。
+
+指示の例と対応するSSML:
+- "noticeという単語の前に0.5秒のブランク" → noticed の前に <break time="0.5s"/>
+- "？を上げ調子のイントネーションで読む" → 疑問符の前の単語を <prosody pitch="+5%">単語?</prosody>
+- "笑いながら" → テキスト全体を <prosody rate="fast" pitch="+2%">テキスト</prosody> で囲む
+- "fastという単語を速く読む" → <prosody rate="fast">fast</prosody>
+- "importantという単語を強調" → <emphasis level="strong">important</emphasis>
+- "カンマの後に0.3秒の間" → カンマの後に <break time="0.3s"/>
+- "ピリオドの後に1秒の間" → ピリオドの後に <break time="1s"/>
+- "全体をゆっくり読む" → <prosody rate="slow">テキスト全体</prosody>
+- "最後の部分を下げ調子で" → 最後の部分を <prosody pitch="-5%">テキスト</prosody>
+
+重要なルール:
+1. 元のテキストの内容は変更しない
+2. SSMLタグのみを挿入する
+3. <speak>タグで囲まない（それは自動で追加される）
+4. 出力は変換後のテキスト（SSMLタグ付き）のみ
+
+変換後のテキストのみを出力してください（説明不要）:`
+
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are an SSML expert. Convert natural language instructions into proper SSML tags. Only output the converted text with SSML tags, no explanations.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error('OpenAI API error:', errorData)
+      return c.json({ 
+        success: false, 
+        error: `OpenAI API エラー: ${errorData.error?.message || 'Unknown error'}` 
+      }, 500)
+    }
+    
+    const data = await response.json()
+    const convertedText = data.choices[0].message.content.trim()
+    
+    return c.json({
+      success: true,
+      ssml: convertedText,
+      originalText: text,
+      instructions: instructions,
+      model: 'gpt-4o-mini',
+      tokensUsed: data.usage?.total_tokens || 0,
+      estimatedCost: ((data.usage?.prompt_tokens || 0) * 0.15 / 1000000 + (data.usage?.completion_tokens || 0) * 0.60 / 1000000).toFixed(6)
+    })
+    
+  } catch (error: any) {
+    console.error('SSML conversion error:', error)
+    return c.json({ 
+      success: false, 
+      error: `SSML変換中にエラーが発生しました: ${error.message}` 
+    }, 500)
+  }
+})
+
 // Google TTS voice mapping with gender support
 const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
   const voiceMap: Record<string, Record<string, { languageCode: string, name: string }>> = {
