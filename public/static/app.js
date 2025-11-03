@@ -8,7 +8,9 @@ let currentState = {
     cefrLevel: 'B1',
     otherConditions: '',
     createQuestions: false,
-    questionSettings: 'long' // 'long' or 'short'
+    questionSettings: 'long', // 'long' or 'short'
+    numSpeakers: 2, // Number of speakers for dialogue
+    speakerNationalities: ['US', 'UK'] // Nationalities for each speaker
   },
   generatedScript: '',
   generatedQuestions: [],
@@ -43,6 +45,38 @@ function renderScreen() {
       attachReviewScreenListeners();
       break;
   }
+}
+
+// Render nationality selectors
+function renderNationalitySelectors(numSpeakers, nationalities) {
+  const nationalityOptions = [
+    { value: 'US', label: 'アメリカ' },
+    { value: 'UK', label: 'イギリス' },
+    { value: 'Australian', label: 'オーストラリア' },
+    { value: 'Canadian', label: 'カナダ' },
+    { value: 'Indian', label: 'インド' },
+    { value: 'Irish', label: 'アイルランド' },
+    { value: 'Scottish', label: 'スコットランド' },
+    { value: 'South African', label: '南アフリカ' },
+    { value: 'New Zealand', label: 'ニュージーランド' },
+    { value: 'Singapore', label: 'シンガポール' }
+  ];
+  
+  let html = '';
+  for (let i = 0; i < numSpeakers; i++) {
+    const selectedNationality = nationalities[i] || nationalityOptions[i % nationalityOptions.length].value;
+    html += `
+      <div class="flex items-center gap-2">
+        <label class="text-sm text-gray-700 w-20">話者${i + 1}:</label>
+        <select name="nationality_${i}" class="nationality-select flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+          ${nationalityOptions.map(opt => `
+            <option value="${opt.value}" ${selectedNationality === opt.value ? 'selected' : ''}>${opt.label}</option>
+          `).join('')}
+        </select>
+      </div>
+    `;
+  }
+  return html;
 }
 
 // Render input screen (メイン入力画面)
@@ -113,13 +147,46 @@ function renderInputScreen() {
           </select>
         </div>
 
+        <!-- 対話の人数設定 (ダイアログの場合のみ表示) -->
+        <div id="dialogueSettings" style="display: ${currentState.formData.format === 'dialogue' ? 'block' : 'none'}">
+          <div class="border-2 border-indigo-200 rounded-lg p-4 bg-indigo-50">
+            <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
+              <i class="fas fa-users mr-2 text-indigo-600"></i>対話設定
+            </h3>
+            
+            <!-- 対話の人数 -->
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-gray-700 mb-2">
+                <i class="fas fa-user-friends mr-2"></i>対話の人数
+              </label>
+              <select name="numSpeakers" id="numSpeakersSelect"
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <option value="2" ${currentState.formData.numSpeakers === 2 ? 'selected' : ''}>2人</option>
+                <option value="3" ${currentState.formData.numSpeakers === 3 ? 'selected' : ''}>3人</option>
+                <option value="4" ${currentState.formData.numSpeakers === 4 ? 'selected' : ''}>4人</option>
+                <option value="5" ${currentState.formData.numSpeakers === 5 ? 'selected' : ''}>5人</option>
+              </select>
+            </div>
+            
+            <!-- 各話者の国籍 -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">
+                <i class="fas fa-globe mr-2"></i>各話者の国籍
+              </label>
+              <div id="nationalitySelectors" class="space-y-2">
+                ${renderNationalitySelectors(currentState.formData.numSpeakers, currentState.formData.speakerNationalities)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- その他条件 -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">
             <i class="fas fa-clipboard-list mr-2"></i>その他条件
           </label>
           <textarea name="otherConditions" rows="3"
-                    placeholder="例: 地球温暖化について、3人の学生が話している"
+                    placeholder="例: カジュアルな会話、ビジネスシーンなど"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">${currentState.formData.otherConditions}</textarea>
         </div>
 
@@ -150,20 +217,56 @@ function renderInputScreen() {
 // Attach listeners for input screen
 function attachInputScreenListeners() {
   const form = document.getElementById('scriptForm');
+  const formatRadios = document.querySelectorAll('input[name="format"]');
+  const numSpeakersSelect = document.getElementById('numSpeakersSelect');
+  const dialogueSettings = document.getElementById('dialogueSettings');
+  
+  // Toggle dialogue settings visibility based on format
+  formatRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.value === 'dialogue') {
+        dialogueSettings.style.display = 'block';
+      } else {
+        dialogueSettings.style.display = 'none';
+      }
+    });
+  });
+  
+  // Update nationality selectors when number of speakers changes
+  if (numSpeakersSelect) {
+    numSpeakersSelect.addEventListener('change', (e) => {
+      const numSpeakers = parseInt(e.target.value);
+      const nationalitySelectors = document.getElementById('nationalitySelectors');
+      nationalitySelectors.innerHTML = renderNationalitySelectors(numSpeakers, currentState.formData.speakerNationalities);
+    });
+  }
   
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     
     // Get form data
     const formData = new FormData(form);
+    const format = formData.get('format');
+    
+    // Get speaker nationalities
+    const numSpeakers = parseInt(formData.get('numSpeakers') || 2);
+    const speakerNationalities = [];
+    if (format === 'dialogue') {
+      for (let i = 0; i < numSpeakers; i++) {
+        speakerNationalities.push(formData.get(`nationality_${i}`) || 'US');
+      }
+    }
+    
     currentState.formData = {
-      format: formData.get('format'),
+      format: format,
       topic: formData.get('topic'),
       keywords: formData.get('keywords'),
       cefrLevel: formData.get('cefrLevel'),
       otherConditions: formData.get('otherConditions'),
       createQuestions: formData.get('createQuestions') === 'on',
-      questionSettings: currentState.formData.questionSettings
+      questionSettings: currentState.formData.questionSettings,
+      numSpeakers: numSpeakers,
+      speakerNationalities: speakerNationalities
     };
     
     // Validation
@@ -299,40 +402,12 @@ async function generateScript() {
   const keywords = 'climate change, global warming'; // Default English keywords
   const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
   
-  // Extract number of speakers from otherConditions
-  // Check for various patterns: "3人", "3者", "three people", "3 people", etc.
-  let numSpeakers = 2; // default for dialogue
+  // Use the explicitly set number of speakers from form data
+  const numSpeakers = currentState.formData.numSpeakers || 2;
+  const speakerNationalities = currentState.formData.speakerNationalities || ['US', 'UK'];
   
-  if (currentState.formData.otherConditions) {
-    const conditions = currentState.formData.otherConditions.toLowerCase();
-    console.log('Other conditions:', currentState.formData.otherConditions);
-    
-    // Check for 3 speakers
-    if (conditions.match(/3人|3者|三人|3\s*people|three\s*people|3\s*名|三名|3\s*speaker|three\s*speaker/gi) ||
-        conditions.includes('3') || conditions.includes('三')) {
-      numSpeakers = 3;
-      console.log('Detected 3 speakers');
-    }
-    // Check for 4 speakers
-    else if (conditions.match(/4人|4者|四人|4\s*people|four\s*people|4\s*名|四名|4\s*speaker|four\s*speaker/gi) ||
-             (conditions.includes('4') || conditions.includes('四'))) {
-      numSpeakers = 4;
-      console.log('Detected 4 speakers');
-    }
-    // Check for 5 speakers
-    else if (conditions.match(/5人|5者|五人|5\s*people|five\s*people|5\s*名|五名|5\s*speaker|five\s*speaker/gi) ||
-             (conditions.includes('5') || conditions.includes('五'))) {
-      numSpeakers = 5;
-      console.log('Detected 5 speakers');
-    }
-  }
-  
-  // For dialogue, ensure at least 2 speakers
-  if (currentState.formData.format === 'dialogue' && numSpeakers < 2) {
-    numSpeakers = 2;
-  }
-  
-  console.log('Final number of speakers:', numSpeakers);
+  console.log('Number of speakers:', numSpeakers);
+  console.log('Speaker nationalities:', speakerNationalities);
   
   if (currentState.formData.format === 'monologue') {
     // Generate monologue
@@ -372,11 +447,10 @@ Thank you for listening.`;
     // Generate dialogue with character names
     const names = generateCharacterNames(numSpeakers);
     
-    // Store speaker info with default accents
-    const defaultAccents = ['US', 'UK', 'Indian', 'Australian', 'Canadian'];
+    // Store speaker info with selected nationalities
     currentState.speakers = names.map((name, i) => ({
       name: name,
-      accent: defaultAccents[i] || 'US',
+      accent: speakerNationalities[i] || 'US',
       speed: 1.0
     }));
     
