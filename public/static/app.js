@@ -250,6 +250,20 @@ function attachQuestionSettingsListeners() {
   });
 }
 
+// Character name pools for dialogue generation
+const characterNames = {
+  male: ['Alex', 'Ben', 'Chris', 'David', 'Eric', 'Frank', 'George', 'Henry', 'Ian', 'Jack', 'Kevin', 'Luke', 'Mark', 'Nathan', 'Oliver', 'Paul', 'Ryan', 'Sam', 'Tom', 'Victor'],
+  female: ['Alice', 'Betty', 'Carol', 'Diana', 'Emma', 'Fiona', 'Grace', 'Hannah', 'Iris', 'Julia', 'Kate', 'Laura', 'Mary', 'Nancy', 'Olivia', 'Patricia', 'Rachel', 'Sarah', 'Tina', 'Victoria'],
+  neutral: ['Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Avery', 'Quinn', 'Skylar', 'Cameron', 'Drew']
+};
+
+// Generate random character names
+function generateCharacterNames(count) {
+  const allNames = [...characterNames.male, ...characterNames.female, ...characterNames.neutral];
+  const shuffled = allNames.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
 // Generate script (mock for now)
 async function generateScript() {
   // Show loading
@@ -266,31 +280,115 @@ async function generateScript() {
   await new Promise(resolve => setTimeout(resolve, 2000));
   
   // Mock generated script
-  const format = currentState.formData.format === 'monologue' ? 'Monologue' : 'Dialogue';
   const numQuestions = currentState.formData.questionSettings === 'long' ? 3 : 1;
+  const isLong = currentState.formData.questionSettings === 'long';
+  const topic = currentState.formData.topic || 'environmental issues';
+  const keywords = currentState.formData.keywords || 'climate change, global warming';
+  const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
   
   if (currentState.formData.format === 'monologue') {
-    currentState.generatedScript = `Good morning, everyone. Today, I'd like to talk about ${currentState.formData.topic || 'environmental issues'}.
+    // Generate monologue
+    const speakerName = generateCharacterNames(1)[0];
+    
+    if (isLong) {
+      currentState.generatedScript = `[${speakerName}]
 
-Climate change is one of the most pressing challenges we face today. ${currentState.formData.keywords ? 'Terms like ' + currentState.formData.keywords + ' are becoming increasingly important in our daily conversations.' : ''} 
+Good morning, everyone. Today, I'd like to talk about ${topic}.
 
-We need to take action now to protect our planet for future generations. This includes reducing carbon emissions, promoting renewable energy, and changing our consumption patterns.
+This is a topic that has become increasingly important in recent years. ${keywordArray.length > 0 ? 'Terms like ' + keywordArray.join(', ') + ' are now part of our everyday vocabulary.' : 'We hear about it in the news almost every day.'}
 
-${currentState.formData.otherConditions || 'Everyone has a role to play in addressing this global challenge.'}
+Let me share some key points about this subject. First, we need to understand the scope of the issue. It affects not just our generation, but future generations as well. Second, there are concrete steps we can all take to make a difference. ${currentState.formData.otherConditions || 'Small actions, when multiplied by millions of people, can have a significant impact.'}
 
-Thank you for your attention.`;
+In conclusion, this is a challenge that requires action from all of us. Whether it's through changing our daily habits, supporting relevant policies, or spreading awareness, everyone has a role to play.
+
+Thank you for your attention, and I hope you'll think about what you can do to help address this important issue.`;
+    } else {
+      currentState.generatedScript = `[${speakerName}]
+
+Hello, everyone. Today I want to briefly discuss ${topic}.
+
+${keywordArray.length > 0 ? 'You may have heard terms like ' + keywordArray[0] + ' in the news.' : 'This is something that affects all of us.'} ${currentState.formData.otherConditions || 'It\'s an important issue that we should all be aware of.'}
+
+We all need to think about what we can do to make a positive impact. Every small action counts.
+
+Thank you for listening.`;
+    }
   } else {
-    currentState.generatedScript = `Student A: Hey, have you thought about ${currentState.formData.topic || 'environmental issues'} lately?
+    // Generate dialogue with character names
+    const numSpeakers = currentState.formData.otherConditions && 
+                       (currentState.formData.otherConditions.match(/3人/g) || 
+                        currentState.formData.otherConditions.match(/three people/gi)) ? 3 : 2;
+    
+    const names = generateCharacterNames(numSpeakers);
+    
+    if (isLong) {
+      if (numSpeakers === 3) {
+        currentState.generatedScript = `[Conversation between ${names[0]}, ${names[1]}, and ${names[2]}]
 
-Student B: Yes, actually. I've been reading about ${currentState.formData.keywords || 'climate change'}.
+${names[0]}: Hey guys, have you been following the news about ${topic} lately?
 
-Student C: Me too! ${currentState.formData.otherConditions || 'It\'s such an important topic for our generation.'}
+${names[1]}: Yeah, I have actually. It's quite concerning, isn't it?
 
-Student A: What do you think we can do to make a difference?
+${names[2]}: Absolutely. I was just reading an article about ${keywordArray[0] || 'the recent developments'}. ${currentState.formData.otherConditions || 'It seems like things are getting more serious.'}
 
-Student B: Well, we could start by reducing our carbon footprint and supporting renewable energy.
+${names[0]}: That's exactly what worries me. What do you think we can do about it?
 
-Student C: Absolutely. Every small action counts!`;
+${names[1]}: Well, I think education is key. If more people understand the issue, they'll be more likely to take action.
+
+${names[2]}: I agree. But we also need to look at practical solutions. ${keywordArray.length > 1 ? 'Issues like ' + keywordArray[1] + ' need immediate attention.' : 'We can\'t just talk about it - we need to act.'}
+
+${names[0]}: You're both right. Maybe we could start a campus initiative or something?
+
+${names[1]}: That's a great idea! We could organize awareness events and workshops.
+
+${names[2]}: Count me in. If we work together, we can definitely make a difference.
+
+${names[0]}: Excellent. Let's meet next week to plan this out properly.`;
+      } else {
+        currentState.generatedScript = `[Conversation between ${names[0]} and ${names[1]}]
+
+${names[0]}: Hi ${names[1]}, have you heard about the recent developments in ${topic}?
+
+${names[1]}: Yes, I have. It's been all over the news. ${keywordArray.length > 0 ? 'They keep talking about ' + keywordArray[0] + '.' : 'It\'s quite a serious matter.'}
+
+${names[0]}: ${currentState.formData.otherConditions || 'I think we need to pay more attention to this issue.'}
+
+${names[1]}: I completely agree. What do you think we can do to help?
+
+${names[0]}: Well, I've been researching some practical steps we can take. ${keywordArray.length > 1 ? 'For instance, addressing ' + keywordArray[1] + ' is something we can start with.' : 'There are several things we can do in our daily lives.'}
+
+${names[1]}: That sounds promising. Maybe we could work together on this?
+
+${names[0]}: Definitely. Two heads are better than one. Let's meet up and discuss our options.
+
+${names[1]}: Great idea. I'm looking forward to it.`;
+      }
+    } else {
+      // Short dialogue
+      if (numSpeakers === 3) {
+        currentState.generatedScript = `[Conversation between ${names[0]}, ${names[1]}, and ${names[2]}]
+
+${names[0]}: Did you hear about ${topic}?
+
+${names[1]}: Yeah, it's quite serious. ${keywordArray.length > 0 ? 'Especially the part about ' + keywordArray[0] + '.' : 'We should pay attention to it.'}
+
+${names[2]}: ${currentState.formData.otherConditions || 'I think we all need to do something about it.'}
+
+${names[0]}: Agreed. Let's discuss this more later.
+
+${names[1]}: Sounds good to me.`;
+      } else {
+        currentState.generatedScript = `[Conversation between ${names[0]} and ${names[1]}]
+
+${names[0]}: Hey ${names[1]}, what do you think about ${topic}?
+
+${names[1]}: ${keywordArray.length > 0 ? 'I\'ve been reading about ' + keywordArray[0] + '.' : 'It\'s definitely something important.'} ${currentState.formData.otherConditions || 'It affects all of us.'}
+
+${names[0]}: You're right. We should probably learn more about it.
+
+${names[1]}: Definitely. Let's look into it together.`;
+      }
+    }
   }
   
   // Mock questions
@@ -299,7 +397,7 @@ Student C: Absolutely. Every small action counts!`;
     for (let i = 1; i <= numQuestions; i++) {
       currentState.generatedQuestions.push({
         question: `Question ${i}: What is the main topic discussed in the listening?`,
-        options: ['A) Environmental issues', 'B) Technology', 'C) Education', 'D) Sports'],
+        options: [`A) ${topic}`, 'B) Technology advancements', 'C) Education reform', 'D) Sports events'],
         correctAnswer: 'A'
       });
     }
