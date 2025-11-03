@@ -13,7 +13,7 @@ let currentState = {
   generatedScript: '',
   generatedQuestions: [],
   speakers: [], // Array of speaker objects with name, accent, speed
-  generatedAudio: null
+  audioSegments: null // Array of {speaker, audio} objects
 };
 
 // Initialize app
@@ -288,15 +288,33 @@ async function generateScript() {
   // Mock generated script
   const numQuestions = currentState.formData.questionSettings === 'long' ? 3 : 1;
   const isLong = currentState.formData.questionSettings === 'long';
-  const topic = currentState.formData.topic || 'environmental issues';
-  const keywords = currentState.formData.keywords || 'climate change, global warming';
+  
+  // Use topic and keywords as-is (keep original input for reference only)
+  const topicInput = currentState.formData.topic || 'environmental issues';
+  const keywordsInput = currentState.formData.keywords || 'climate change, global warming';
+  
+  // For actual script generation, use English equivalents
+  // This is a mock - in production, AI would translate/understand the intent
+  const topic = 'environmental issues'; // Default English topic
+  const keywords = 'climate change, global warming'; // Default English keywords
   const keywordArray = keywords.split(',').map(k => k.trim()).filter(k => k);
   
-  // Extract number of speakers from otherConditions (don't include the text directly)
-  const numSpeakers = currentState.formData.otherConditions && 
-                     (currentState.formData.otherConditions.match(/3人/g) || 
-                      currentState.formData.otherConditions.match(/three people/gi) ||
-                      currentState.formData.otherConditions.match(/3\s*people/gi)) ? 3 : 2;
+  // Extract number of speakers from otherConditions
+  // Check for various patterns: "3人", "3者", "three people", "3 people", etc.
+  let numSpeakers = 2; // default
+  if (currentState.formData.otherConditions) {
+    const conditions = currentState.formData.otherConditions;
+    if (conditions.match(/3人|3者|三人|3\s*people|three\s*people/gi)) {
+      numSpeakers = 3;
+    } else if (conditions.match(/4人|4者|四人|4\s*people|four\s*people/gi)) {
+      numSpeakers = 4;
+    }
+  }
+  
+  // For dialogue, ensure correct number of speakers
+  if (currentState.formData.format === 'dialogue' && numSpeakers < 2) {
+    numSpeakers = 2;
+  }
   
   if (currentState.formData.format === 'monologue') {
     // Generate monologue
@@ -642,7 +660,7 @@ function attachAudioSettingsListeners() {
       });
       
       if (response.data.success) {
-        currentState.generatedAudio = response.data.audioUrl;
+        currentState.audioSegments = response.data.audioSegments;
         showAudioResult();
       } else {
         alert('音声生成に失敗しました: ' + response.data.error);
@@ -657,9 +675,32 @@ function attachAudioSettingsListeners() {
   });
 }
 
+// Play audio segments sequentially
+let currentAudioIndex = 0;
+let audioElements = [];
+
+function playNextSegment() {
+  if (currentAudioIndex < audioElements.length) {
+    audioElements[currentAudioIndex].play();
+  }
+}
+
 // Show audio generation result
 function showAudioResult() {
   const appContainer = document.getElementById('app');
+  
+  const segmentsHTML = currentState.audioSegments.map((segment, index) => `
+    <div class="mb-2 flex items-center gap-2">
+      <button class="play-segment-btn px-3 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm" data-index="${index}">
+        <i class="fas fa-play"></i>
+      </button>
+      <span class="text-sm text-gray-700">${segment.speaker}</span>
+      <audio class="audio-segment hidden" data-index="${index}">
+        <source src="data:audio/mp3;base64,${segment.audio}" type="audio/mpeg">
+      </audio>
+    </div>
+  `).join('');
+  
   appContainer.innerHTML = `
     <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
       <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
@@ -670,15 +711,24 @@ function showAudioResult() {
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6">
         <p class="text-green-800 mb-4 flex items-center">
           <i class="fas fa-info-circle mr-2"></i>
-          音声ファイルが正常に生成されました
+          音声ファイルが正常に生成されました（${currentState.audioSegments.length}セグメント）
         </p>
         
-        <audio controls class="w-full mb-4">
-          <source src="${currentState.generatedAudio}" type="audio/mpeg">
-          お使いのブラウザは音声再生に対応していません。
-        </audio>
+        <div class="mb-4">
+          <button id="playAllButton" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">
+            <i class="fas fa-play mr-2"></i>全て連続再生
+          </button>
+          <button id="stopAllButton" class="bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition ml-2">
+            <i class="fas fa-stop mr-2"></i>停止
+          </button>
+        </div>
         
-        <div class="text-sm text-gray-600">
+        <div class="border-t pt-4">
+          <p class="text-sm font-semibold text-gray-700 mb-2">セグメント別再生:</p>
+          ${segmentsHTML}
+        </div>
+        
+        <div class="text-sm text-gray-600 mt-4">
           <p><strong>話者情報:</strong></p>
           <ul class="list-disc list-inside mt-2">
             ${currentState.speakers.map(s => `
@@ -689,10 +739,6 @@ function showAudioResult() {
       </div>
       
       <div class="flex gap-4">
-        <button id="downloadAudioButton"
-                class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
-          <i class="fas fa-download mr-2"></i>音声をダウンロード
-        </button>
         <button id="backToInputFromAudioButton"
                 class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
           <i class="fas fa-home mr-2"></i>最初に戻る
@@ -701,9 +747,47 @@ function showAudioResult() {
     </div>
   `;
   
-  // Attach listeners
-  document.getElementById('downloadAudioButton').addEventListener('click', () => {
-    window.open(currentState.generatedAudio, '_blank');
+  // Setup audio elements
+  audioElements = Array.from(document.querySelectorAll('.audio-segment'));
+  audioElements.forEach((audio, index) => {
+    audio.addEventListener('ended', () => {
+      currentAudioIndex++;
+      playNextSegment();
+    });
+  });
+  
+  // Play all button
+  document.getElementById('playAllButton').addEventListener('click', () => {
+    currentAudioIndex = 0;
+    // Stop all audio first
+    audioElements.forEach(audio => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+    playNextSegment();
+  });
+  
+  // Stop all button
+  document.getElementById('stopAllButton').addEventListener('click', () => {
+    audioElements.forEach(audio => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+    currentAudioIndex = 0;
+  });
+  
+  // Individual segment play buttons
+  document.querySelectorAll('.play-segment-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.index);
+      // Stop all others
+      audioElements.forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+      });
+      // Play selected
+      audioElements[index].play();
+    });
   });
   
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
@@ -711,7 +795,7 @@ function showAudioResult() {
     currentState.generatedScript = '';
     currentState.generatedQuestions = [];
     currentState.speakers = [];
-    currentState.generatedAudio = null;
+    currentState.audioSegments = null;
     renderScreen();
   });
 }

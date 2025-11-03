@@ -15,6 +15,45 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
 })
 
+// Google TTS voice mapping
+const getGoogleTTSVoice = (accent: string) => {
+  const voiceMap: Record<string, { languageCode: string, name: string }> = {
+    'US': { languageCode: 'en-US', name: 'en-US-Journey-D' },
+    'UK': { languageCode: 'en-GB', name: 'en-GB-Journey-D' },
+    'Australian': { languageCode: 'en-AU', name: 'en-AU-Journey-D' },
+    'Canadian': { languageCode: 'en-US', name: 'en-US-Journey-F' },
+    'Indian': { languageCode: 'en-IN', name: 'en-IN-Journey-D' },
+    'Irish': { languageCode: 'en-IE', name: 'en-IE-Standard-A' },
+    'Scottish': { languageCode: 'en-GB', name: 'en-GB-Standard-B' }
+  }
+  return voiceMap[accent] || voiceMap['US']
+}
+
+// Parse script and extract speaker lines
+const parseScript = (script: string) => {
+  const lines: Array<{ speaker: string, text: string }> = []
+  const scriptLines = script.split('\n').filter(line => line.trim())
+  
+  for (const line of scriptLines) {
+    // Match "SpeakerName: text" or "[SpeakerName]" followed by text
+    const dialogueMatch = line.match(/^([A-Za-z]+):\s*(.+)$/)
+    const monologueMatch = line.match(/^\[([A-Za-z]+)\]$/)
+    
+    if (dialogueMatch) {
+      const [, speaker, text] = dialogueMatch
+      lines.push({ speaker: speaker.trim(), text: text.trim() })
+    } else if (!monologueMatch && lines.length > 0) {
+      // Continue previous speaker's line
+      lines[lines.length - 1].text += ' ' + line.trim()
+    } else if (!monologueMatch && !line.startsWith('[')) {
+      // Monologue text without speaker prefix
+      lines.push({ speaker: 'Speaker', text: line.trim() })
+    }
+  }
+  
+  return lines
+}
+
 // Audio generation endpoint
 app.post('/api/generate-audio', async (c) => {
   try {
@@ -25,25 +64,85 @@ app.post('/api/generate-audio', async (c) => {
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
     }
     
-    // TODO: Implement actual audio generation using TTS service
-    // For now, return mock response
+    // Google TTS API key
+    const GOOGLE_TTS_API_KEY = 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
     
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Parse script into speaker lines
+    const lines = parseScript(script)
     
-    // Mock audio URL (replace with actual TTS API integration)
-    const mockAudioUrl = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+    if (lines.length === 0) {
+      return c.json({ success: false, error: 'スクリプトの解析に失敗しました' }, 400)
+    }
     
-    return c.json({
-      success: true,
-      audioUrl: mockAudioUrl,
-      speakers: speakers,
-      message: '音声生成が完了しました（現在はモックデータです）'
+    // Create speaker voice map
+    const speakerVoiceMap: Record<string, any> = {}
+    speakers.forEach((speaker: any) => {
+      speakerVoiceMap[speaker.name] = {
+        voice: getGoogleTTSVoice(speaker.accent),
+        speed: speaker.speed
+      }
     })
     
-  } catch (error) {
+    // Generate audio for each line
+    const audioSegments: Array<{ speaker: string, audio: string }> = []
+    
+    for (const line of lines) {
+      const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0].name]
+      
+      // Call Google TTS API
+      const ttsRequest = {
+        input: { text: line.text },
+        voice: {
+          languageCode: speakerConfig.voice.languageCode,
+          name: speakerConfig.voice.name
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: speakerConfig.speed,
+          pitch: 0
+        }
+      }
+      
+      const response = await fetch(
+        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ttsRequest)
+        }
+      )
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('Google TTS error:', errorData)
+        return c.json({ 
+          success: false, 
+          error: `Google TTS API エラー: ${errorData.error?.message || 'Unknown error'}` 
+        }, 500)
+      }
+      
+      const data = await response.json()
+      audioSegments.push({
+        speaker: line.speaker,
+        audio: data.audioContent
+      })
+    }
+    
+    // Return all segments - client will handle playback
+    return c.json({
+      success: true,
+      audioSegments: audioSegments,
+      speakers: speakers,
+      segmentCount: audioSegments.length,
+      message: '音声生成が完了しました'
+    })
+    
+  } catch (error: any) {
     console.error('Audio generation error:', error)
-    return c.json({ success: false, error: '音声生成中にエラーが発生しました' }, 500)
+    return c.json({ 
+      success: false, 
+      error: `音声生成中にエラーが発生しました: ${error.message}` 
+    }, 500)
   }
 })
 
