@@ -91,7 +91,7 @@ const parseScript = (script: string) => {
 app.post('/api/generate-audio', async (c) => {
   try {
     const body = await c.req.json()
-    const { script, speakers } = body
+    const { script, speakers, parsedLines, questions, questionReader } = body
     
     if (!script || !speakers || speakers.length === 0) {
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
@@ -100,8 +100,8 @@ app.post('/api/generate-audio', async (c) => {
     // Google TTS API key
     const GOOGLE_TTS_API_KEY = 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
     
-    // Parse script into speaker lines
-    const lines = parseScript(script)
+    // Use parsedLines if provided, otherwise parse script
+    let lines = parsedLines && parsedLines.length > 0 ? parsedLines : parseScript(script)
     
     if (lines.length === 0) {
       return c.json({ success: false, error: 'スクリプトの解析に失敗しました' }, 400)
@@ -119,43 +119,12 @@ app.post('/api/generate-audio', async (c) => {
     })
     
     // Generate audio for each line
-    const audioSegments: Array<{ speaker: string, audio: string, pauseAfter: number }> = []
+    const audioSegments: Array<{ speaker: string, audio: string, pauseAfter: number, type?: string, text?: string }> = []
     
-    for (const line of lines) {
-      let voiceConfig: any
-      let speakingRate = 1.0
-      let pauseAfter = 0
-      
-      // Handle narration
-      if (line.isNarration) {
-        const textIsJapanese = isJapanese(line.text)
-        if (textIsJapanese) {
-          // Japanese narration
-          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' }
-        } else {
-          // English narration (US neutral voice)
-          voiceConfig = { languageCode: 'en-US', name: 'en-US-Journey-D' }
-        }
-        speakingRate = 1.0
-        pauseAfter = 1.0 // Default 1 second pause after narration
-      } else {
-        // Regular speaker
-        const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0]?.name]
-        if (!speakerConfig) {
-          console.warn(`Speaker ${line.speaker} not found, using default`)
-          voiceConfig = getGoogleTTSVoice('US', 'male')
-          speakingRate = 1.0
-          pauseAfter = 0
-        } else {
-          voiceConfig = speakerConfig.voice
-          speakingRate = speakerConfig.speed
-          pauseAfter = speakerConfig.pauseAfter || 0
-        }
-      }
-      
-      // Call Google TTS API
+    // Helper function to generate TTS audio
+    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number) => {
       const ttsRequest = {
-        input: { text: line.text },
+        input: { text },
         voice: {
           languageCode: voiceConfig.languageCode,
           name: voiceConfig.name
@@ -179,18 +148,91 @@ app.post('/api/generate-audio', async (c) => {
       if (!response.ok) {
         const errorData = await response.json()
         console.error('Google TTS error:', errorData)
-        return c.json({ 
-          success: false, 
-          error: `Google TTS API エラー: ${errorData.error?.message || 'Unknown error'}` 
-        }, 500)
+        throw new Error(`Google TTS API エラー: ${errorData.error?.message || 'Unknown error'}`)
       }
       
       const data = await response.json()
+      return data.audioContent
+    }
+    
+    // Generate audio for script lines
+    for (const line of lines) {
+      let voiceConfig: any
+      let speakingRate = 1.0
+      let pauseAfter = line.pauseAfter !== undefined ? line.pauseAfter : 0
+      
+      // Handle narration
+      if (line.type === 'narration' || line.isNarration) {
+        const textIsJapanese = isJapanese(line.text)
+        if (textIsJapanese) {
+          // Japanese narration
+          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' }
+        } else {
+          // English narration (US neutral voice)
+          voiceConfig = { languageCode: 'en-US', name: 'en-US-Journey-D' }
+        }
+        speakingRate = 1.0
+      } else {
+        // Regular speaker
+        const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0]?.name]
+        if (!speakerConfig) {
+          console.warn(`Speaker ${line.speaker} not found, using default`)
+          voiceConfig = getGoogleTTSVoice('US', 'male')
+          speakingRate = 1.0
+        } else {
+          voiceConfig = speakerConfig.voice
+          speakingRate = speakerConfig.speed
+        }
+      }
+      
+      const audioContent = await generateTTS(line.text, voiceConfig, speakingRate)
       audioSegments.push({
         speaker: line.speaker,
-        audio: data.audioContent,
-        pauseAfter: pauseAfter
+        audio: audioContent,
+        pauseAfter: pauseAfter,
+        type: line.type || 'dialogue',
+        text: line.text
       })
+    }
+    
+    // Generate audio for questions if provided
+    if (questions && questions.length > 0 && questionReader) {
+      const qReaderVoice = getGoogleTTSVoice(
+        questionReader.accent || 'US',
+        questionReader.gender || 'male'
+      )
+      const qReaderSpeed = questionReader.speed || 1.0
+      const qPause = questionReader.questionPause || 2.0
+      const oPause = questionReader.optionPause || 0.5
+      
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i]
+        
+        // Generate audio for question text
+        const questionText = `Question ${i + 1}. ${question.question}`
+        const questionAudio = await generateTTS(questionText, qReaderVoice, qReaderSpeed)
+        audioSegments.push({
+          speaker: 'Question Reader',
+          audio: questionAudio,
+          pauseAfter: qPause,
+          type: 'question',
+          text: questionText
+        })
+        
+        // Generate audio for each option
+        const optionLabels = ['A', 'B', 'C', 'D']
+        for (let j = 0; j < question.options.length; j++) {
+          const optionText = `${optionLabels[j]}. ${question.options[j]}`
+          const optionAudio = await generateTTS(optionText, qReaderVoice, qReaderSpeed)
+          audioSegments.push({
+            speaker: 'Question Reader',
+            audio: optionAudio,
+            pauseAfter: j === question.options.length - 1 ? 2.0 : oPause, // Longer pause after last option
+            type: 'option',
+            text: optionText
+          })
+        }
+      }
     }
     
     // Return all segments - client will handle playback

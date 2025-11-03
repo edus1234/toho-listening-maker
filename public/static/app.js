@@ -623,12 +623,12 @@ function attachReviewScreenListeners() {
     currentState.generatedScript = e.target.value;
   });
   
-  // Add narration
+  // Add narration (at the beginning)
   addNarrationButton.addEventListener('click', () => {
     const narrationText = prompt('ナレーションテキストを入力してください（英語または日本語）:', '');
     if (narrationText && narrationText.trim()) {
       const currentScript = scriptEditor.value;
-      const newScript = currentScript + '\n\n[Narration: ' + narrationText.trim() + ']';
+      const newScript = '[Narration: ' + narrationText.trim() + ']\n\n' + currentScript;
       scriptEditor.value = newScript;
       currentState.generatedScript = newScript;
     }
@@ -646,13 +646,137 @@ function attachReviewScreenListeners() {
   });
   
   generateAudioButton.addEventListener('click', () => {
+    // Parse script to prepare for detailed settings
+    const lines = parseScriptForSettings(currentState.generatedScript);
+    currentState.parsedLines = lines;
     currentState.screen = 'audioSettings';
     renderScreen();
   });
 }
 
+// Parse script for detailed settings
+function parseScriptForSettings(script) {
+  const lines = [];
+  const scriptLines = script.split('\n').filter(line => line.trim());
+  
+  for (const line of scriptLines) {
+    // Match narration
+    const narrationMatch = line.match(/^\[Narration:\s*(.+)\]$/i);
+    if (narrationMatch) {
+      lines.push({ 
+        type: 'narration', 
+        speaker: 'Narration', 
+        text: narrationMatch[1].trim(),
+        pauseAfter: 1.0 
+      });
+      continue;
+    }
+    
+    // Match dialogue: "Speaker: text"
+    const dialogueMatch = line.match(/^([A-Za-z]+):\s*(.+)$/);
+    if (dialogueMatch) {
+      lines.push({ 
+        type: 'dialogue', 
+        speaker: dialogueMatch[1].trim(), 
+        text: dialogueMatch[2].trim(),
+        pauseAfter: 0.5 
+      });
+      continue;
+    }
+    
+    // Continue previous line if no match and not a header
+    if (!line.startsWith('[') && lines.length > 0 && lines[lines.length - 1].type !== 'narration') {
+      lines[lines.length - 1].text += ' ' + line.trim();
+    }
+  }
+  
+  return lines;
+}
+
 // Render audio settings screen
 function renderAudioSettingsScreen() {
+  // Render parsed lines with pause settings
+  const linesHTML = (currentState.parsedLines || []).map((line, index) => `
+    <div class="border-l-4 border-${line.type === 'narration' ? 'purple' : 'blue'}-500 pl-4 mb-3 bg-gray-50 p-3 rounded">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1">
+          <div class="font-semibold text-sm text-gray-700">${line.type === 'narration' ? '📖 ナレーション' : '💬 ' + line.speaker}</div>
+          <div class="text-gray-600 text-sm mt-1">${line.text}</div>
+        </div>
+        <div class="w-32">
+          <label class="text-xs text-gray-600">後のブランク（秒）</label>
+          <input type="number" min="0" max="10" step="0.5" value="${line.pauseAfter || 0}"
+                 class="line-pause w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                 data-line-index="${index}">
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  // Render question settings if questions exist
+  const questionsHTML = currentState.generatedQuestions.length > 0 ? `
+    <div class="border-2 border-purple-200 rounded-lg p-4 mb-4 bg-purple-50">
+      <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+        <i class="fas fa-question-circle mr-2 text-purple-600"></i>
+        問題読み上げ設定
+      </h3>
+      
+      <div class="space-y-4 mb-4">
+        <!-- Question Reader Gender -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-venus-mars mr-1"></i>性別
+          </label>
+          <select id="questionGender" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="male">男声</option>
+            <option value="female">女声</option>
+          </select>
+        </div>
+        
+        <!-- Question Reader Accent -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-globe mr-1"></i>アクセント
+          </label>
+          <select id="questionAccent" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="US">アメリカ英語 (US)</option>
+            <option value="UK">イギリス英語 (UK)</option>
+            <option value="Australian">オーストラリア英語</option>
+            <option value="Canadian">カナダ英語</option>
+            <option value="Indian">インド英語</option>
+          </select>
+        </div>
+        
+        <!-- Question Reader Speed -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-tachometer-alt mr-1"></i>速度: <span id="questionSpeedValue">1.0x</span>
+          </label>
+          <input type="range" min="0.5" max="1.5" step="0.1" value="1.0"
+                 id="questionSpeed" class="w-full h-2 bg-gray-200 rounded-lg">
+        </div>
+        
+        <!-- Pause settings -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              問題後のブランク（秒）
+            </label>
+            <input type="number" min="0" max="10" step="0.5" value="2"
+                   id="questionPause" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              選択肢間のブランク（秒）
+            </label>
+            <input type="number" min="0" max="5" step="0.5" value="0.5"
+                   id="optionPause" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+  
   const speakersHTML = currentState.speakers.map((speaker, index) => `
     <div class="border-2 border-gray-200 rounded-lg p-4 mb-4">
       <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
@@ -725,10 +849,29 @@ function renderAudioSettingsScreen() {
       </h2>
       
       <p class="text-gray-600 mb-6">
-        各話者のアクセントと話す速度を調整してください。
+        スクリプトの各セリフのブランク、話者のアクセント、速度、問題読み上げ設定を調整してください。
       </p>
       
+      <!-- Script Lines with Pause Controls -->
       <div class="mb-6">
+        <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+          <i class="fas fa-align-left mr-2 text-blue-600"></i>
+          スクリプトとブランク設定
+        </h3>
+        <div class="space-y-2">
+          ${linesHTML}
+        </div>
+      </div>
+      
+      <!-- Question Reader Settings -->
+      ${questionsHTML}
+      
+      <!-- Speaker Settings -->
+      <div class="mb-6">
+        <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
+          <i class="fas fa-users mr-2 text-indigo-600"></i>
+          話者設定
+        </h3>
         ${speakersHTML}
       </div>
       
@@ -751,7 +894,70 @@ function attachAudioSettingsListeners() {
   const backToReviewButton = document.getElementById('backToReviewButton');
   const startAudioGenerationButton = document.getElementById('startAudioGenerationButton');
   
-  // Update gender
+  // Initialize question reader config if not exists
+  if (!currentState.questionReader) {
+    currentState.questionReader = {
+      gender: 'male',
+      accent: 'US',
+      speed: 1.0,
+      questionPause: 2.0,
+      optionPause: 0.5
+    };
+  }
+  
+  // Update line pause settings
+  document.querySelectorAll('.line-pause').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.lineIndex);
+      const pause = parseFloat(e.target.value) || 0;
+      currentState.parsedLines[index].pauseAfter = pause;
+    });
+  });
+  
+  // Update question reader gender
+  const questionGender = document.getElementById('questionGender');
+  if (questionGender) {
+    questionGender.addEventListener('change', (e) => {
+      currentState.questionReader.gender = e.target.value;
+    });
+  }
+  
+  // Update question reader accent
+  const questionAccent = document.getElementById('questionAccent');
+  if (questionAccent) {
+    questionAccent.addEventListener('change', (e) => {
+      currentState.questionReader.accent = e.target.value;
+    });
+  }
+  
+  // Update question reader speed
+  const questionSpeed = document.getElementById('questionSpeed');
+  const questionSpeedValue = document.getElementById('questionSpeedValue');
+  if (questionSpeed && questionSpeedValue) {
+    questionSpeed.addEventListener('input', (e) => {
+      const speed = parseFloat(e.target.value);
+      currentState.questionReader.speed = speed;
+      questionSpeedValue.textContent = speed.toFixed(1) + 'x';
+    });
+  }
+  
+  // Update question pause
+  const questionPause = document.getElementById('questionPause');
+  if (questionPause) {
+    questionPause.addEventListener('input', (e) => {
+      currentState.questionReader.questionPause = parseFloat(e.target.value) || 0;
+    });
+  }
+  
+  // Update option pause
+  const optionPause = document.getElementById('optionPause');
+  if (optionPause) {
+    optionPause.addEventListener('input', (e) => {
+      currentState.questionReader.optionPause = parseFloat(e.target.value) || 0;
+    });
+  }
+  
+  // Update speaker gender
   document.querySelectorAll('.speaker-gender').forEach(select => {
     select.addEventListener('change', (e) => {
       const index = parseInt(e.target.dataset.speakerIndex);
@@ -759,7 +965,7 @@ function attachAudioSettingsListeners() {
     });
   });
   
-  // Update accent
+  // Update speaker accent
   document.querySelectorAll('.speaker-accent').forEach(select => {
     select.addEventListener('change', (e) => {
       const index = parseInt(e.target.dataset.speakerIndex);
@@ -767,7 +973,7 @@ function attachAudioSettingsListeners() {
     });
   });
   
-  // Update speed
+  // Update speaker speed
   document.querySelectorAll('.speaker-speed').forEach(slider => {
     slider.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.speakerIndex);
@@ -780,7 +986,7 @@ function attachAudioSettingsListeners() {
     });
   });
   
-  // Update pause after
+  // Update speaker pause after
   document.querySelectorAll('.speaker-pause').forEach(input => {
     input.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.speakerIndex);
@@ -806,11 +1012,23 @@ function attachAudioSettingsListeners() {
     `;
     
     try {
-      // Call API to generate audio
-      const response = await axios.post('/api/generate-audio', {
+      // Prepare API request with parsed lines and question reader config
+      const requestData = {
         script: currentState.generatedScript,
-        speakers: currentState.speakers
-      });
+        speakers: currentState.speakers,
+        parsedLines: currentState.parsedLines || [],
+        questions: currentState.generatedQuestions || [],
+        questionReader: currentState.questionReader || {
+          gender: 'male',
+          accent: 'US',
+          speed: 1.0,
+          questionPause: 2.0,
+          optionPause: 0.5
+        }
+      };
+      
+      // Call API to generate audio
+      const response = await axios.post('/api/generate-audio', requestData);
       
       if (response.data.success) {
         currentState.audioSegments = response.data.audioSegments;
@@ -842,17 +1060,32 @@ function playNextSegment() {
 function showAudioResult() {
   const appContainer = document.getElementById('app');
   
-  const segmentsHTML = currentState.audioSegments.map((segment, index) => `
-    <div class="mb-2 flex items-center gap-2">
-      <button class="play-segment-btn px-3 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm" data-index="${index}">
-        <i class="fas fa-play"></i>
-      </button>
-      <span class="text-sm text-gray-700">${segment.speaker}</span>
-      <audio class="audio-segment hidden" data-index="${index}">
-        <source src="data:audio/mp3;base64,${segment.audio}" type="audio/mpeg">
-      </audio>
-    </div>
-  `).join('');
+  const segmentsHTML = currentState.audioSegments.map((segment, index) => {
+    const typeIcon = segment.type === 'narration' ? '📖' : 
+                    segment.type === 'question' ? '❓' :
+                    segment.type === 'option' ? '📝' : '💬';
+    const typeColor = segment.type === 'narration' ? 'purple' : 
+                     segment.type === 'question' ? 'orange' :
+                     segment.type === 'option' ? 'yellow' : 'blue';
+    
+    return `
+      <div class="mb-2 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded">
+        <div class="flex items-start gap-2">
+          <button class="play-segment-btn px-2 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm flex-shrink-0" data-index="${index}">
+            <i class="fas fa-play"></i>
+          </button>
+          <div class="flex-1">
+            <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
+            <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
+            ${segment.pauseAfter ? `<div class="text-xs text-gray-500 mt-1">ブランク: ${segment.pauseAfter}秒</div>` : ''}
+          </div>
+          <audio class="audio-segment hidden" data-index="${index}">
+            <source src="data:audio/mp3;base64,${segment.audio}" type="audio/mpeg">
+          </audio>
+        </div>
+      </div>
+    `;
+  }).join('');
   
   appContainer.innerHTML = `
     <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
