@@ -1,21 +1,150 @@
-```txt
-npm install
-npm run dev
+# リスニングテスト自動作成システム
+
+英語のリスニングテストの原稿・音声・問題を自動で作成するWebアプリケーションです。
+
+## 🌐 公開URL
+
+- **開発環境**: https://3000-ijna95podvgmovwjfqaet-82b888ba.sandbox.novita.ai
+- **APIヘルスチェック**: https://3000-ijna95podvgmovwjfqaet-82b888ba.sandbox.novita.ai/api/health
+
+## ✨ 実装済み機能
+
+### 1. スクリプト条件入力フォーム
+- **形式選択**: モノローグ（1人）またはダイアローグ（複数人）
+- **トピック入力**: リスニングのテーマを指定
+- **キーワード指定**: 含めるべき単語をカンマ区切りで入力
+- **CEFRレベル選択**: A1〜C2の6段階から選択
+- **その他条件**: 詳細な要件を自由記述
+
+### 2. リスニング問題設定画面
+- **長め + 問題2-3題**: 詳細なスクリプトと複数の問題
+- **短め + 問題1題**: コンパクトなスクリプトと基本問題
+- 問題作成の有無を選択可能
+
+### 3. 原稿確認・編集画面
+- 生成されたスクリプトの表示
+- スクリプトの編集機能
+- 問題の表示（問題作成を選択した場合）
+- 再生成機能
+- 音声生成ボタン（今後実装予定）
+
+## 🚀 機能の流れ
+
+1. **ステップ1**: スクリプト条件を入力
+   - 形式、トピック、キーワード、CEFRレベル、その他条件を設定
+   - 「併せてリスニング問題も作成する」にチェックを入れると問題も自動生成
+
+2. **ステップ2**: 問題設定（問題作成を選択した場合）
+   - 「長め + 問題2-3題」または「短め + 問題1題」を選択
+
+3. **ステップ3**: 原稿の確認と編集
+   - 自動生成されたスクリプトを確認
+   - 必要に応じて編集可能
+   - 問題も表示（作成を選択した場合）
+   - 音声生成（今後実装）
+
+## 📋 未実装機能
+
+- [ ] バックエンドAPI連携による実際のスクリプト生成
+- [ ] AI（LLM）を使った高品質なスクリプト生成
+- [ ] 音声生成機能（TTS連携）
+- [ ] 生成したスクリプトと音声のダウンロード機能
+- [ ] スクリプトと問題の履歴保存機能
+- [ ] PDF出力機能
+
+## 🎯 推奨される次のステップ
+
+1. **AI連携**: OpenAI APIやClaude APIを使ってスクリプトを本格的に生成
+2. **音声生成**: ElevenLabs、Google TTS、またはOpenAI TTSで音声を生成
+3. **データベース統合**: Cloudflare D1で生成履歴を保存
+4. **ダウンロード機能**: スクリプトと音声をまとめてダウンロード
+5. **認証機能**: ユーザーごとの履歴管理
+
+## 🛠️ 技術スタック
+
+- **フレームワーク**: Hono (軽量Webフレームワーク)
+- **デプロイ先**: Cloudflare Pages/Workers
+- **フロントエンド**: Vanilla JavaScript + TailwindCSS
+- **ビルドツール**: Vite
+- **開発環境**: PM2でプロセス管理
+
+## 📦 プロジェクト構造
+
+```
+webapp/
+├── src/
+│   ├── index.tsx          # Honoアプリケーション（メインエントリーポイント）
+│   └── renderer.tsx       # JSXレンダラー
+├── public/
+│   └── static/
+│       ├── app.js         # フロントエンドJavaScript（画面遷移とUI制御）
+│       └── style.css      # スタイル
+├── dist/                  # ビルド出力
+├── ecosystem.config.cjs   # PM2設定
+├── wrangler.jsonc         # Cloudflare設定
+├── package.json           # 依存関係とスクリプト
+└── README.md              # このファイル
 ```
 
-```txt
-npm run deploy
+## 🚀 ローカル開発
+
+```bash
+# ビルド
+npm run build
+
+# PM2で開発サーバー起動
+pm2 start ecosystem.config.cjs
+
+# サービス確認
+curl http://localhost:3000/api/health
+
+# PM2ログ確認
+pm2 logs webapp --nostream
+
+# PM2サービス停止
+pm2 delete webapp
 ```
 
-[For generating/synchronizing types based on your Worker configuration run](https://developers.cloudflare.com/workers/wrangler/commands/#types):
+## 📝 データモデル
 
-```txt
-npm run cf-typegen
-```
+### スクリプト設定
+- `format`: 形式（monologue/dialogue）
+- `topic`: トピック
+- `keywords`: キーワード（カンマ区切り）
+- `cefrLevel`: CEFRレベル（A1〜C2）
+- `otherConditions`: その他条件
+- `createQuestions`: 問題作成の有無
+- `questionSettings`: 問題設定（long/short）
 
-Pass the `CloudflareBindings` as generics when instantiation `Hono`:
+### 生成されるデータ
+- `generatedScript`: 生成されたスクリプト
+- `generatedQuestions`: 生成された問題（配列）
+  - `question`: 問題文
+  - `options`: 選択肢（配列）
+  - `correctAnswer`: 正解
 
-```ts
-// src/index.ts
-const app = new Hono<{ Bindings: CloudflareBindings }>()
-```
+## 📄 デプロイメント
+
+### 開発環境
+- **ステータス**: ✅ 稼働中
+- **最終更新**: 2025-11-03
+
+### 本番環境
+- **ステータス**: ❌ 未デプロイ
+- **デプロイコマンド**: `npm run deploy:prod`
+
+## 📞 使い方
+
+1. ブラウザで公開URLにアクセス
+2. リスニングスクリプトの条件を入力
+3. 必要に応じて「併せてリスニング問題も作成する」にチェック
+4. 問題設定を選択（チェックした場合）
+5. 生成されたスクリプトを確認・編集
+6. 音声生成（今後実装）
+
+## 🎨 UI/UX特徴
+
+- **レスポンシブデザイン**: TailwindCSSによるモダンなUI
+- **直感的な画面遷移**: ステップバイステップのフロー
+- **リアルタイム編集**: 生成後のスクリプト編集が可能
+- **視覚的フィードバック**: アイコンとカラーによる分かりやすい表示
