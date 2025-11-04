@@ -275,24 +275,43 @@ app.post('/api/convert-to-ssml', async (c) => {
 
 この指示に基づいて、元のテキストにSSMLタグを適切に挿入してください。
 
-指示の例と対応するSSML:
-- "noticeという単語の前に0.5秒のブランク" → noticed の前に <break time="0.5s"/>
-- "？を上げ調子のイントネーションで読む" → 疑問符の前の単語を <prosody pitch="+5%">単語?</prosody>
-- "笑いながら" → テキスト全体を <prosody rate="fast" pitch="+2%">テキスト</prosody> で囲む
-- "fastという単語を速く読む" → <prosody rate="fast">fast</prosody>
-- "importantという単語を強調" → <emphasis level="strong">important</emphasis>
-- "カンマの後に0.3秒の間" → カンマの後に <break time="0.3s"/>
-- "ピリオドの後に1秒の間" → ピリオドの後に <break time="1s"/>
-- "全体をゆっくり読む" → <prosody rate="slow">テキスト全体</prosody>
-- "最後の部分を下げ調子で" → 最後の部分を <prosody pitch="-5%">テキスト</prosody>
+【重要な変換ルール】
 
-重要なルール:
-1. 元のテキストの内容は変更しない
-2. SSMLタグのみを挿入する
-3. <speak>タグで囲まない（それは自動で追加される）
-4. 出力は変換後のテキスト（SSMLタグ付き）のみ
+1. ブレイク（間）の指示:
+   - "noticedの前に2秒のブランク" → I <break time="2s"/>noticed that...
+   - "カンマの後に0.5秒の間" → word,<break time="0.5s"/> next word
+   - "ピリオドの後に1秒の間" → sentence.<break time="1s"/> Next sentence
+   - ブレイクは必ず指定された単語や記号の**直前または直後**に配置
 
-変換後のテキストのみを出力してください（説明不要）:`
+2. ピッチ（イントネーション）の指示:
+   - "？を上げ調子で読む" → word<prosody pitch="+10%">?</prosody>
+   - "最後を下げ調子で" → 最後の単語を <prosody pitch="-10%">word</prosody>
+   - 疑問文は pitch="+10%" 以上を使用
+
+3. 速度の指示:
+   - "fastという単語を速く読む" → <prosody rate="150%">fast</prosody>
+   - "全体をゆっくり読む" → <prosody rate="80%">全テキスト</prosody>
+   - rate="fast" より rate="120%" のような数値指定を優先
+
+4. 強調の指示:
+   - "importantを強調" → <emphasis level="strong">important</emphasis>
+
+5. 感情・雰囲気の指示:
+   - "笑いながら" → <prosody rate="120%" pitch="+5%">全テキスト</prosody>
+   - "悲しそうに" → <prosody rate="80%" pitch="-5%">全テキスト</prosody>
+
+【出力形式】
+- 元のテキストにSSMLタグを埋め込んだもののみを出力
+- <speak>タグは不要（自動で追加される）
+- 説明文は一切不要
+- 元のテキストの単語は一切変更しない
+
+例:
+入力テキスト: "I noticed something important."
+指示: "noticedの前に2秒のブランク、importantを強調"
+出力: I <break time="2s"/>noticed something <emphasis level="strong">important</emphasis>.
+
+変換後のテキストのみを出力:`
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -304,10 +323,10 @@ app.post('/api/convert-to-ssml', async (c) => {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are an SSML expert. Convert natural language instructions into proper SSML tags. Only output the converted text with SSML tags, no explanations.' },
+          { role: 'system', content: 'You are an SSML expert. Convert natural language instructions into proper SSML tags. CRITICAL: Only output the original text with SSML tags embedded. Do NOT add explanations, do NOT add <speak> tags, do NOT change any words. Output format: original_text_with_ssml_tags_only' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.3,
+        temperature: 0.1,
         max_tokens: 500
       })
     })
@@ -323,6 +342,12 @@ app.post('/api/convert-to-ssml', async (c) => {
     
     const data = await response.json()
     const convertedText = data.choices[0].message.content.trim()
+    
+    // Log for debugging
+    console.log('SSML Conversion:')
+    console.log('  Original:', text)
+    console.log('  Instructions:', instructions)
+    console.log('  Converted:', convertedText)
     
     return c.json({
       success: true,
