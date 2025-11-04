@@ -88,7 +88,26 @@ function renderInputScreen() {
         リスニングスクリプト設定
       </h2>
       
-      <form id="scriptForm" class="space-y-6">
+      <!-- Path selection: AI generation or paste script -->
+      <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="border-2 border-indigo-200 rounded-lg p-6 bg-gradient-to-br from-indigo-50 to-white hover:shadow-lg transition cursor-pointer" id="pathAiGeneration">
+          <div class="text-center">
+            <i class="fas fa-robot text-4xl text-indigo-600 mb-3"></i>
+            <h3 class="font-bold text-lg text-gray-800 mb-2">AIでスクリプト生成</h3>
+            <p class="text-sm text-gray-600">条件を指定してAIが自動生成します</p>
+          </div>
+        </div>
+        <div class="border-2 border-green-200 rounded-lg p-6 bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition cursor-pointer" id="pathPasteScript">
+          <div class="text-center">
+            <i class="fas fa-paste text-4xl text-green-600 mb-3"></i>
+            <h3 class="font-bold text-lg text-gray-800 mb-2">原稿を貼り付け</h3>
+            <p class="text-sm text-gray-600">すでにお持ちの原稿から音声作成</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- AI Generation Form (hidden initially after selection) -->
+      <form id="scriptForm" class="space-y-6" style="display: none;">
         <!-- 形式 -->
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -210,6 +229,42 @@ function renderInputScreen() {
           </button>
         </div>
       </form>
+      
+      <!-- Paste Script Form (hidden initially) -->
+      <div id="pasteScriptForm" class="space-y-6" style="display: none;">
+        <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+          <p class="text-sm text-green-800 flex items-center">
+            <i class="fas fa-info-circle mr-2"></i>
+            原稿を貼り付けて、直接音声作成に進みます
+          </p>
+        </div>
+        
+        <!-- Script textarea -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-file-alt mr-2"></i>リスニングスクリプト原稿
+          </label>
+          <textarea id="pastedScript" rows="12"
+                    placeholder="ここに原稿を貼り付けてください。&#10;&#10;例：&#10;Alice: Good morning, Bob!&#10;Bob: Hi Alice, how are you?&#10;Alice: I'm doing great, thanks!&#10;&#10;※話者名がある場合は「話者名:」の形式で記載してください"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"></textarea>
+          <p class="text-xs text-gray-500 mt-2">
+            <i class="fas fa-lightbulb mr-1"></i>
+            話者名がある場合は自動検出します（例：Alice: こんにちは）
+          </p>
+        </div>
+        
+        <!-- Action buttons -->
+        <div class="flex gap-4">
+          <button type="button" id="backToPathSelection"
+                  class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+            <i class="fas fa-arrow-left mr-2"></i>戻る
+          </button>
+          <button type="button" id="proceedToAudioSettings"
+                  class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition shadow-md">
+            <i class="fas fa-volume-up mr-2"></i>音声作成画面へ
+          </button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -217,9 +272,80 @@ function renderInputScreen() {
 // Attach listeners for input screen
 function attachInputScreenListeners() {
   const form = document.getElementById('scriptForm');
+  const pasteScriptForm = document.getElementById('pasteScriptForm');
+  const pathAiGeneration = document.getElementById('pathAiGeneration');
+  const pathPasteScript = document.getElementById('pathPasteScript');
+  const backToPathSelection = document.getElementById('backToPathSelection');
+  const proceedToAudioSettings = document.getElementById('proceedToAudioSettings');
   const formatRadios = document.querySelectorAll('input[name="format"]');
   const numSpeakersSelect = document.getElementById('numSpeakersSelect');
   const dialogueSettings = document.getElementById('dialogueSettings');
+  
+  // Path selection: AI Generation
+  pathAiGeneration.addEventListener('click', () => {
+    pathAiGeneration.parentElement.style.display = 'none';
+    form.style.display = 'block';
+  });
+  
+  // Path selection: Paste Script
+  pathPasteScript.addEventListener('click', () => {
+    pathAiGeneration.parentElement.style.display = 'none';
+    pasteScriptForm.style.display = 'block';
+  });
+  
+  // Back to path selection
+  backToPathSelection.addEventListener('click', () => {
+    pathAiGeneration.parentElement.style.display = 'grid';
+    pasteScriptForm.style.display = 'none';
+    form.style.display = 'none';
+  });
+  
+  // Proceed to audio settings with pasted script
+  proceedToAudioSettings.addEventListener('click', () => {
+    const pastedScript = document.getElementById('pastedScript').value.trim();
+    
+    if (!pastedScript) {
+      alert('原稿を入力してください');
+      return;
+    }
+    
+    // Parse the script and detect speakers
+    currentState.generatedScript = pastedScript;
+    
+    // Parse script into lines and detect speakers
+    const lines = pastedScript.split('\n').filter(line => line.trim());
+    const speakerPattern = /^([A-Za-z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+)[:：]\s*(.+)$/;
+    const detectedSpeakers = new Set();
+    
+    currentState.parsedLines = lines.map(line => {
+      const match = line.match(speakerPattern);
+      if (match) {
+        const speaker = match[1].trim();
+        const text = match[2].trim();
+        detectedSpeakers.add(speaker);
+        return { speaker, text, pauseAfter: 1.0, voiceInstructions: '', ssmlInstructions: '' };
+      } else {
+        return { speaker: 'Narrator', text: line.trim(), pauseAfter: 1.0, voiceInstructions: '', ssmlInstructions: '' };
+      }
+    });
+    
+    // Create speaker objects for detected speakers
+    const speakerNames = Array.from(detectedSpeakers);
+    if (speakerNames.length === 0) {
+      speakerNames.push('Narrator');
+    }
+    
+    currentState.speakers = speakerNames.map((name, index) => ({
+      name: name,
+      accent: ['US', 'UK', 'Australian', 'Canadian', 'Indian'][index % 5],
+      gender: index % 2 === 0 ? 'FEMALE' : 'MALE',
+      speed: 1.0
+    }));
+    
+    // Move to audio settings screen
+    currentState.screen = 'audioSettings';
+    renderScreen();
+  });
   
   // Toggle dialogue settings visibility based on format
   formatRadios.forEach(radio => {
