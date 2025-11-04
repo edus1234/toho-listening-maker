@@ -1255,7 +1255,7 @@ function showAudioResult() {
                      segment.type === 'option' ? 'yellow' : 'blue';
     
     return `
-      <div class="mb-2 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded">
+      <div class="mb-3 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded" data-segment-index="${index}">
         <div class="flex items-start gap-2">
           <button class="play-segment-btn px-2 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm flex-shrink-0" data-index="${index}">
             <i class="fas fa-play"></i>
@@ -1264,9 +1264,41 @@ function showAudioResult() {
             <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
             <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
             ${segment.pauseAfter ? `<div class="text-xs text-gray-500 mt-1">ブランク: ${segment.pauseAfter}秒</div>` : ''}
+            ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono">SSML: ${segment.ssmlInstructions}</div>` : ''}
+            
+            <!-- Voice instructions editor (collapsed by default) -->
+            <div class="mt-2">
+              <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 toggle-audio-voice-instructions" data-segment-index="${index}">
+                <i class="fas fa-magic mr-1"></i>音声指示を編集
+              </button>
+              <div class="audio-voice-instructions-container hidden mt-2" data-segment-index="${index}">
+                <textarea 
+                  class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                  data-segment-index="${index}"
+                  rows="2"
+                  placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒のブランク&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら"
+                >${segment.voiceInstructions || ''}</textarea>
+                
+                <div class="flex gap-2 mt-2">
+                  <button type="button" class="convert-audio-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-segment-index="${index}">
+                    <i class="fas fa-magic mr-1"></i>SSMLに変換
+                  </button>
+                  <button type="button" class="regenerate-audio-btn flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition" data-segment-index="${index}">
+                    <i class="fas fa-redo mr-1"></i>音声再生成
+                  </button>
+                  <button type="button" class="clear-audio-instruction-btn bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-segment-index="${index}">
+                    <i class="fas fa-times mr-1"></i>クリア
+                  </button>
+                </div>
+                
+                <div class="audio-ssml-preview hidden bg-gray-50 p-2 rounded border border-gray-200 mt-2" data-segment-index="${index}">
+                  <div class="text-xs font-semibold text-gray-700 mb-1">変換されたSSML:</div>
+                  <div class="audio-ssml-preview-text text-xs font-mono text-gray-600 whitespace-pre-wrap">${segment.ssmlInstructions || ''}</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <audio class="audio-segment hidden" data-index="${index}">
-            <source src="data:audio/mp3;base64,${segment.audio}" type="audio/mpeg">
+          <audio class="audio-segment hidden" data-index="${index}" src="data:audio/mp3;base64,${segment.audio}">
           </audio>
         </div>
       </div>
@@ -1363,6 +1395,143 @@ function showAudioResult() {
       });
       // Play selected
       audioElements[index].play();
+    });
+  });
+  
+  // Toggle voice instructions editor
+  document.querySelectorAll('.toggle-audio-voice-instructions').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
+      const container = document.querySelector(`.audio-voice-instructions-container[data-segment-index="${index}"]`);
+      container.classList.toggle('hidden');
+    });
+  });
+  
+  // Convert natural language to SSML (in audio page)
+  document.querySelectorAll('.convert-audio-to-ssml-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
+      const segment = currentState.audioSegments[index];
+      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      const instructions = textarea.value;
+      
+      if (!instructions || !instructions.trim()) {
+        alert('音声指示を入力してください');
+        return;
+      }
+      
+      // Show loading
+      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>変換中...';
+      e.target.disabled = true;
+      
+      try {
+        const response = await axios.post('/api/convert-to-ssml', {
+          text: segment.text,
+          instructions: instructions
+        });
+        
+        if (response.data.success) {
+          // Update segment SSML instructions
+          currentState.audioSegments[index].ssmlInstructions = response.data.ssml;
+          currentState.audioSegments[index].voiceInstructions = instructions;
+          
+          // Show preview
+          const preview = document.querySelector(`.audio-ssml-preview[data-segment-index="${index}"]`);
+          const previewText = preview.querySelector('.audio-ssml-preview-text');
+          previewText.textContent = response.data.ssml;
+          preview.classList.remove('hidden');
+          
+          console.log(`✅ SSML変換完了（音声ページ） - トークン: ${response.data.tokensUsed}, コスト: $${response.data.estimatedCost}`);
+        } else {
+          alert('SSML変換エラー: ' + response.data.error);
+        }
+      } catch (error) {
+        alert('SSML変換中にエラーが発生しました: ' + error.message);
+      } finally {
+        // Restore button
+        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>SSMLに変換';
+        e.target.disabled = false;
+      }
+    });
+  });
+  
+  // Clear voice instructions (in audio page)
+  document.querySelectorAll('.clear-audio-instruction-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
+      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      const preview = document.querySelector(`.audio-ssml-preview[data-segment-index="${index}"]`);
+      
+      textarea.value = '';
+      preview.classList.add('hidden');
+      
+      // Clear from state
+      currentState.audioSegments[index].ssmlInstructions = '';
+      currentState.audioSegments[index].voiceInstructions = '';
+    });
+  });
+  
+  // Regenerate single audio segment
+  document.querySelectorAll('.regenerate-audio-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
+      const segment = currentState.audioSegments[index];
+      
+      if (!segment.text) {
+        alert('テキストがありません');
+        return;
+      }
+      
+      // Confirm regeneration
+      if (!confirm(`「${segment.text.substring(0, 30)}...」の音声を再生成しますか？`)) {
+        return;
+      }
+      
+      // Show loading
+      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>生成中...';
+      e.target.disabled = true;
+      
+      try {
+        // Find speaker settings
+        const speaker = currentState.speakers.find(s => s.name === segment.speaker);
+        if (!speaker) {
+          throw new Error('話者が見つかりません');
+        }
+        
+        // Prepare text with SSML if available
+        const textToSpeak = segment.ssmlInstructions || segment.text;
+        
+        // Generate audio
+        const response = await axios.post('/api/generate-audio', {
+          text: textToSpeak,
+          accent: speaker.accent,
+          gender: speaker.gender,
+          speed: speaker.speed
+        });
+        
+        if (response.data.success) {
+          // Update audio in state
+          currentState.audioSegments[index].audio = response.data.audio;
+          
+          // Update audio element
+          const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
+          audioElement.src = `data:audio/mp3;base64,${response.data.audio}`;
+          audioElement.load();
+          
+          // Play the new audio
+          audioElement.play();
+          
+          alert('✅ 音声を再生成しました');
+        } else {
+          alert('音声生成エラー: ' + response.data.error);
+        }
+      } catch (error) {
+        alert('音声再生成中にエラーが発生しました: ' + error.message);
+      } finally {
+        // Restore button
+        e.target.innerHTML = '<i class="fas fa-redo mr-1"></i>音声再生成';
+        e.target.disabled = false;
+      }
     });
   });
   
