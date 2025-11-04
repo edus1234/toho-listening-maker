@@ -1,6 +1,8 @@
 // State management
 let currentState = {
-  screen: 'input', // 'input', 'questionSettings', 'review', 'audioSettings'
+  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'audioSettings'
+  isAuthenticated: false,
+  authToken: null,
   formData: {
     format: 'monologue',
     topic: '',
@@ -20,7 +22,81 @@ let currentState = {
 
 // Initialize app
 function init() {
-  renderScreen();
+  // Check if token exists in localStorage
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    // Verify token
+    verifyToken(token);
+  } else {
+    renderScreen();
+  }
+  
+  // Setup logout button
+  setupLogoutButton();
+}
+
+// Setup logout button
+function setupLogoutButton() {
+  const logoutButton = document.getElementById('logoutButton');
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      if (confirm('ログアウトしますか？')) {
+        // Clear token
+        localStorage.removeItem('authToken');
+        
+        // Reset state
+        currentState.isAuthenticated = false;
+        currentState.authToken = null;
+        currentState.screen = 'login';
+        
+        // Hide logout button
+        logoutButton.classList.add('hidden');
+        
+        // Render login screen
+        renderScreen();
+      }
+    });
+  }
+}
+
+// Verify token with backend
+async function verifyToken(token) {
+  try {
+    const response = await axios.post('/api/verify-token', { token });
+    if (response.data.valid) {
+      currentState.isAuthenticated = true;
+      currentState.authToken = token;
+      currentState.screen = 'input';
+      showLogoutButton();
+      renderScreen();
+    } else {
+      localStorage.removeItem('authToken');
+      currentState.screen = 'login';
+      hideLogoutButton();
+      renderScreen();
+    }
+  } catch (error) {
+    localStorage.removeItem('authToken');
+    currentState.screen = 'login';
+    hideLogoutButton();
+    renderScreen();
+  }
+}
+
+// Show logout button
+function showLogoutButton() {
+  const logoutButton = document.getElementById('logoutButton');
+  if (logoutButton) {
+    logoutButton.classList.remove('hidden');
+  }
+}
+
+// Hide logout button
+function hideLogoutButton() {
+  const logoutButton = document.getElementById('logoutButton');
+  if (logoutButton) {
+    logoutButton.classList.add('hidden');
+  }
 }
 
 // Render current screen
@@ -28,6 +104,10 @@ function renderScreen() {
   const appContainer = document.getElementById('app');
   
   switch(currentState.screen) {
+    case 'login':
+      appContainer.innerHTML = renderLoginScreen();
+      attachLoginScreenListeners();
+      break;
     case 'input':
       appContainer.innerHTML = renderInputScreen();
       attachInputScreenListeners();
@@ -45,6 +125,133 @@ function renderScreen() {
       attachReviewScreenListeners();
       break;
   }
+}
+
+// Render login screen
+function renderLoginScreen() {
+  return `
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 -m-8">
+      <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+        <div class="text-center mb-8">
+          <div class="inline-block bg-indigo-600 rounded-full p-4 mb-4">
+            <i class="fas fa-headphones text-white text-4xl"></i>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">
+            リスニングテスト自動作成システム
+          </h1>
+          <p class="text-gray-600 text-sm">
+            ログインしてご利用ください
+          </p>
+        </div>
+        
+        <form id="loginForm" class="space-y-6">
+          <!-- Username -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-user mr-2"></i>ユーザー名
+            </label>
+            <input type="text" id="username" name="username" 
+                   required
+                   autocomplete="username"
+                   placeholder="ユーザー名を入力"
+                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+          </div>
+          
+          <!-- Password -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+              <i class="fas fa-lock mr-2"></i>パスワード
+            </label>
+            <input type="password" id="password" name="password" 
+                   required
+                   autocomplete="current-password"
+                   placeholder="パスワードを入力"
+                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+          </div>
+          
+          <!-- Error message -->
+          <div id="loginError" class="hidden bg-red-50 border-2 border-red-200 rounded-lg p-3">
+            <p class="text-red-800 text-sm flex items-center">
+              <i class="fas fa-exclamation-circle mr-2"></i>
+              <span id="loginErrorMessage"></span>
+            </p>
+          </div>
+          
+          <!-- Login button -->
+          <button type="submit" id="loginButton"
+                  class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+            <i class="fas fa-sign-in-alt mr-2"></i>ログイン
+          </button>
+        </form>
+        
+        <!-- Demo credentials info (remove in production) -->
+        <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <p class="text-xs text-gray-600 text-center">
+            <i class="fas fa-info-circle mr-1"></i>
+            デモ用ログイン情報<br>
+            <span class="font-mono">ユーザー名: admin / パスワード: listening2024</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Attach listeners for login screen
+function attachLoginScreenListeners() {
+  const form = document.getElementById('loginForm');
+  const loginButton = document.getElementById('loginButton');
+  const loginError = document.getElementById('loginError');
+  const loginErrorMessage = document.getElementById('loginErrorMessage');
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    
+    // Hide error
+    loginError.classList.add('hidden');
+    
+    // Show loading
+    loginButton.disabled = true;
+    loginButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ログイン中...';
+    
+    try {
+      const response = await axios.post('/api/login', {
+        username,
+        password
+      });
+      
+      if (response.data.success) {
+        // Save token to localStorage
+        localStorage.setItem('authToken', response.data.token);
+        
+        // Update state
+        currentState.isAuthenticated = true;
+        currentState.authToken = response.data.token;
+        currentState.screen = 'input';
+        
+        // Show logout button
+        showLogoutButton();
+        
+        // Render main app
+        renderScreen();
+      } else {
+        // Show error
+        loginErrorMessage.textContent = response.data.error || 'ログインに失敗しました';
+        loginError.classList.remove('hidden');
+      }
+    } catch (error) {
+      // Show error
+      loginErrorMessage.textContent = error.response?.data?.error || 'ログイン処理中にエラーが発生しました';
+      loginError.classList.remove('hidden');
+    } finally {
+      // Restore button
+      loginButton.disabled = false;
+      loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>ログイン';
+    }
+  });
 }
 
 // Render nationality selectors

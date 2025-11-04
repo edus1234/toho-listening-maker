@@ -15,6 +15,63 @@ app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
 })
 
+// Login endpoint
+app.post('/api/login', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { username, password } = body
+    
+    const AUTH_USERNAME = c.env?.AUTH_USERNAME || 'admin'
+    const AUTH_PASSWORD = c.env?.AUTH_PASSWORD || 'listening2024'
+    
+    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+      // Simple token generation (in production, use JWT or proper session)
+      const token = Buffer.from(`${username}:${Date.now()}`).toString('base64')
+      return c.json({ 
+        success: true, 
+        token: token,
+        message: 'ログイン成功'
+      })
+    } else {
+      return c.json({ 
+        success: false, 
+        error: 'ユーザー名またはパスワードが正しくありません'
+      }, 401)
+    }
+  } catch (error: any) {
+    return c.json({ 
+      success: false, 
+      error: 'ログイン処理中にエラーが発生しました'
+    }, 500)
+  }
+})
+
+// Verify token endpoint
+app.post('/api/verify-token', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { token } = body
+    
+    if (!token) {
+      return c.json({ valid: false }, 401)
+    }
+    
+    // Simple token validation (in production, use proper JWT validation)
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      if (decoded.includes(':')) {
+        return c.json({ valid: true })
+      }
+    } catch (e) {
+      return c.json({ valid: false }, 401)
+    }
+    
+    return c.json({ valid: false }, 401)
+  } catch (error: any) {
+    return c.json({ valid: false }, 500)
+  }
+})
+
 // OpenAI API - Generate Script
 app.post('/api/generate-script-ai', async (c) => {
   try {
@@ -716,11 +773,18 @@ app.get('/', (c) => {
         <div class="container mx-auto px-4 py-8 max-w-4xl">
             <!-- Header -->
             <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                <h1 class="text-3xl font-bold text-indigo-700 mb-2 flex items-center">
-                    <i class="fas fa-headphones mr-3"></i>
-                    リスニングテスト自動作成システム
-                </h1>
-                <p class="text-gray-600">英語のリスニング原稿・音声・問題を自動で作成</p>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-indigo-700 mb-2 flex items-center">
+                            <i class="fas fa-headphones mr-3"></i>
+                            リスニングテスト自動作成システム
+                        </h1>
+                        <p class="text-gray-600">英語のリスニング原稿・音声・問題を自動で作成</p>
+                    </div>
+                    <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+                        <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
+                    </button>
+                </div>
             </div>
 
             <!-- Main Content -->
