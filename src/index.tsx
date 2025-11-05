@@ -378,6 +378,48 @@ app.post('/api/convert-to-ssml', async (c) => {
       }, 400)
     }
     
+    // Check if instructions contain marks (simple pattern-based conversion)
+    const hasMarks = /\[(0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり)\]/.test(instructions)
+    
+    if (hasMarks) {
+      // Direct mark-to-SSML conversion without AI
+      let convertedText = instructions
+      
+      // Convert pause marks
+      convertedText = convertedText.replace(/\[0\.5秒間\]/g, '<break time="0.5s"/>')
+      convertedText = convertedText.replace(/\[1秒間\]/g, '<break time="1s"/>')
+      convertedText = convertedText.replace(/\[2秒間\]/g, '<break time="2s"/>')
+      
+      // Convert pitch marks
+      convertedText = convertedText.replace(/\[↑\]/g, '<prosody pitch="+15%">')
+      convertedText = convertedText.replace(/\[↓\]/g, '<prosody pitch="-15%">')
+      
+      // Convert emphasis marks
+      convertedText = convertedText.replace(/\[強調\]/g, '<emphasis level="strong">')
+      convertedText = convertedText.replace(/\[\/強調\]/g, '</emphasis>')
+      
+      // Convert speed marks
+      convertedText = convertedText.replace(/\[速く\]/g, '<prosody rate="130%">')
+      convertedText = convertedText.replace(/\[\/速く\]/g, '</prosody>')
+      convertedText = convertedText.replace(/\[ゆっくり\]/g, '<prosody rate="80%">')
+      convertedText = convertedText.replace(/\[\/ゆっくり\]/g, '</prosody>')
+      
+      // Auto-close unclosed prosody tags at the end
+      const openProsodyCount = (convertedText.match(/<prosody/g) || []).length
+      const closeProsodyCount = (convertedText.match(/<\/prosody>/g) || []).length
+      if (openProsodyCount > closeProsodyCount) {
+        convertedText += '</prosody>'.repeat(openProsodyCount - closeProsodyCount)
+      }
+      
+      return c.json({
+        success: true,
+        ssml: convertedText,
+        tokensUsed: 0,
+        estimatedCost: 0
+      })
+    }
+    
+    // If no marks, use AI-based conversion
     const prompt = `あなたはSSML（Speech Synthesis Markup Language）の専門家です。
 
 元のテキスト:

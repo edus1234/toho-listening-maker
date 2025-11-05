@@ -1358,11 +1358,41 @@ function showAudioResult() {
                 <i class="fas fa-sliders-h mr-1"></i>音声を調整する
               </button>
               <div class="audio-voice-instructions-container hidden mt-2" data-segment-index="${index}">
+                <div class="bg-blue-50 p-2 rounded mb-2 text-xs">
+                  <div class="font-semibold text-blue-800 mb-1">クイック挿入:</div>
+                  <div class="flex flex-wrap gap-1">
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.5秒間]">
+                      [0.5秒間]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[1秒間]">
+                      [1秒間]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↑]">
+                      [↑] 上げ調子
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↓]">
+                      [↓] 下げ調子
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[強調]">
+                      [強調]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[速く]">
+                      [速く]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[ゆっくり]">
+                      [ゆっくり]
+                    </button>
+                  </div>
+                  <div class="text-xs text-gray-600 mt-1">
+                    💡 カーソル位置にマークを挿入します。単語の前後に配置してください。
+                  </div>
+                </div>
+                
                 <textarea 
                   class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
                   data-segment-index="${index}"
-                  rows="2"
-                  placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒の間を入れる&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら読む"
+                  rows="3"
+                  placeholder="テキストにマークを挿入してください。例：&#10;I [0.5秒間] noticed [強調]something[/強調] important[↑]?"
                 >${segment.voiceInstructions || ''}</textarea>
                 
                 <div class="flex gap-2 mt-2">
@@ -1443,15 +1473,21 @@ function showAudioResult() {
   
   // Setup audio elements
   audioElements = Array.from(document.querySelectorAll('.audio-segment'));
+  let isPlayingAll = false; // Flag to track if playing all segments
+  
   audioElements.forEach((audio, index) => {
     audio.addEventListener('ended', () => {
-      currentAudioIndex++;
-      playNextSegment();
+      // Only auto-play next segment if "Play All" mode is active
+      if (isPlayingAll) {
+        currentAudioIndex++;
+        playNextSegment();
+      }
     });
   });
   
   // Play all button
   document.getElementById('playAllButton').addEventListener('click', () => {
+    isPlayingAll = true; // Enable continuous playback
     currentAudioIndex = 0;
     // Stop all audio first
     audioElements.forEach(audio => {
@@ -1463,6 +1499,7 @@ function showAudioResult() {
   
   // Stop all button
   document.getElementById('stopAllButton').addEventListener('click', () => {
+    isPlayingAll = false; // Disable continuous playback
     audioElements.forEach(audio => {
       audio.pause();
       audio.currentTime = 0;
@@ -1473,13 +1510,14 @@ function showAudioResult() {
   // Individual segment play buttons
   document.querySelectorAll('.play-segment-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      isPlayingAll = false; // Disable continuous playback for individual play
       const index = parseInt(e.currentTarget.dataset.index);
       // Stop all others
       audioElements.forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
-      // Play selected
+      // Play selected segment only
       audioElements[index].play();
     });
   });
@@ -1554,6 +1592,30 @@ function showAudioResult() {
       // Clear from state
       currentState.audioSegments[index].ssmlInstructions = '';
       currentState.audioSegments[index].voiceInstructions = '';
+    });
+  });
+  
+  // Insert mark buttons
+  document.querySelectorAll('.insert-mark-btn').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.segmentIndex);
+      const mark = e.currentTarget.dataset.mark;
+      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      
+      // Insert mark at cursor position
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const before = text.substring(0, start);
+      const after = text.substring(end);
+      
+      textarea.value = before + mark + after;
+      
+      // Move cursor after inserted mark
+      const newPos = start + mark.length;
+      textarea.selectionStart = newPos;
+      textarea.selectionEnd = newPos;
+      textarea.focus();
     });
   });
   
