@@ -1005,18 +1005,56 @@ ${names[1]}: Definitely. Let's look into it together.`;
 function renderReviewScreen() {
   const questionsHTML = currentState.generatedQuestions.length > 0 ? `
     <div class="bg-white rounded-lg shadow-lg p-6 mt-6 fade-in">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-        <i class="fas fa-question-circle mr-3 text-indigo-600"></i>
-        生成された問題
-      </h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+          <i class="fas fa-question-circle mr-3 text-indigo-600"></i>
+          生成された問題
+        </h2>
+        <button id="addQuestionButton" type="button"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+          <i class="fas fa-plus mr-2"></i>問題を追加
+        </button>
+      </div>
       <div class="space-y-6">
         ${currentState.generatedQuestions.map((q, i) => `
-          <div class="border-l-4 border-indigo-500 pl-4">
-            <h3 class="font-semibold text-gray-800 mb-2">${q.question}</h3>
-            <div class="space-y-1 text-gray-700">
-              ${q.options.map(opt => `<div>${opt}</div>`).join('')}
+          <div class="border-l-4 border-indigo-500 pl-4 bg-indigo-50 p-3 rounded" data-question-index="${i}">
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-semibold text-gray-800 flex-1">問題 ${i + 1}</h3>
+              <div class="flex gap-2">
+                <button type="button" class="edit-question-btn text-blue-600 hover:text-blue-800 text-sm" data-question-index="${i}">
+                  <i class="fas fa-edit"></i> 編集
+                </button>
+                <button type="button" class="delete-question-btn text-red-600 hover:text-red-800 text-sm" data-question-index="${i}">
+                  <i class="fas fa-trash"></i> 削除
+                </button>
+              </div>
             </div>
-            <p class="text-sm text-green-600 mt-2"><i class="fas fa-check mr-1"></i>正解: ${q.correctAnswer}</p>
+            <div class="question-display" data-question-index="${i}">
+              <p class="font-medium text-gray-800 mb-2">${q.question}</p>
+              <div class="space-y-1 text-gray-700 text-sm">
+                ${q.options.map(opt => `<div>${opt}</div>`).join('')}
+              </div>
+              <p class="text-sm text-green-600 mt-2"><i class="fas fa-check mr-1"></i>正解: ${q.correctAnswer}</p>
+            </div>
+            <div class="question-editor hidden" data-question-index="${i}">
+              <div class="space-y-2">
+                <div>
+                  <label class="text-xs text-gray-600">問題文:</label>
+                  <input type="text" class="question-text-input w-full px-2 py-1 text-sm border rounded" value="${q.question}" data-question-index="${i}">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-600">選択肢 (1行1つ):</label>
+                  <textarea class="question-options-input w-full px-2 py-1 text-sm border rounded" rows="4" data-question-index="${i}">${q.options.join('\n')}</textarea>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-600">正解:</label>
+                  <input type="text" class="question-answer-input w-full px-2 py-1 text-sm border rounded" value="${q.correctAnswer}" data-question-index="${i}">
+                </div>
+                <button type="button" class="save-question-btn bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700" data-question-index="${i}">
+                  <i class="fas fa-save mr-1"></i>保存
+                </button>
+              </div>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -1099,6 +1137,60 @@ function attachReviewScreenListeners() {
   
   regenerateButton.addEventListener('click', () => {
     generateScript();
+  });
+  
+  // Question editing handlers
+  const addQuestionButton = document.getElementById('addQuestionButton');
+  if (addQuestionButton) {
+    addQuestionButton.addEventListener('click', () => {
+      const newQuestion = {
+        question: '新しい問題を入力してください',
+        options: ['A) 選択肢1', 'B) 選択肢2', 'C) 選択肢3', 'D) 選択肢4'],
+        correctAnswer: 'A'
+      };
+      currentState.generatedQuestions.push(newQuestion);
+      renderScreen();
+    });
+  }
+  
+  // Edit question buttons
+  document.querySelectorAll('.edit-question-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.questionIndex);
+      const display = document.querySelector(`.question-display[data-question-index="${index}"]`);
+      const editor = document.querySelector(`.question-editor[data-question-index="${index}"]`);
+      display.classList.add('hidden');
+      editor.classList.remove('hidden');
+    });
+  });
+  
+  // Save question buttons
+  document.querySelectorAll('.save-question-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.questionIndex);
+      const questionText = document.querySelector(`.question-text-input[data-question-index="${index}"]`).value;
+      const optionsText = document.querySelector(`.question-options-input[data-question-index="${index}"]`).value;
+      const correctAnswer = document.querySelector(`.question-answer-input[data-question-index="${index}"]`).value;
+      
+      currentState.generatedQuestions[index] = {
+        question: questionText,
+        options: optionsText.split('\n').filter(o => o.trim()),
+        correctAnswer: correctAnswer
+      };
+      
+      renderScreen();
+    });
+  });
+  
+  // Delete question buttons
+  document.querySelectorAll('.delete-question-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.questionIndex);
+      if (confirm('この問題を削除しますか？')) {
+        currentState.generatedQuestions.splice(index, 1);
+        renderScreen();
+      }
+    });
   });
   
   generateAudioButton.addEventListener('click', () => {
@@ -1249,25 +1341,33 @@ function showAudioResult() {
           <div class="flex-1">
             <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
             <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
-            ${segment.pauseAfter ? `<div class="text-xs text-gray-500 mt-1">ブランク: ${segment.pauseAfter}秒</div>` : ''}
-            ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono">SSML: ${segment.ssmlInstructions}</div>` : ''}
+            
+            <!-- Pause/Blank control -->
+            <div class="flex items-center gap-2 mt-2">
+              <label class="text-xs text-gray-600">後のブランク（秒）:</label>
+              <input type="number" min="0" max="10" step="0.5" value="${segment.pauseAfter || 0}"
+                     class="segment-pause-input w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                     data-segment-index="${index}">
+            </div>
+            
+            ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono bg-purple-50 p-1 rounded">適用済み音声調整: ${segment.ssmlInstructions}</div>` : ''}
             
             <!-- Voice instructions editor (collapsed by default) -->
             <div class="mt-2">
               <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 toggle-audio-voice-instructions" data-segment-index="${index}">
-                <i class="fas fa-magic mr-1"></i>音声指示を編集
+                <i class="fas fa-sliders-h mr-1"></i>音声を調整する
               </button>
               <div class="audio-voice-instructions-container hidden mt-2" data-segment-index="${index}">
                 <textarea 
                   class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
                   data-segment-index="${index}"
                   rows="2"
-                  placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒のブランク&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら"
+                  placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒の間を入れる&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら読む"
                 >${segment.voiceInstructions || ''}</textarea>
                 
                 <div class="flex gap-2 mt-2">
                   <button type="button" class="convert-audio-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-segment-index="${index}">
-                    <i class="fas fa-magic mr-1"></i>SSMLに変換
+                    <i class="fas fa-magic mr-1"></i>音声を調整
                   </button>
                   <button type="button" class="regenerate-audio-btn flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition" data-segment-index="${index}">
                     <i class="fas fa-redo mr-1"></i>音声再生成
@@ -1278,7 +1378,7 @@ function showAudioResult() {
                 </div>
                 
                 <div class="audio-ssml-preview hidden bg-gray-50 p-2 rounded border border-gray-200 mt-2" data-segment-index="${index}">
-                  <div class="text-xs font-semibold text-gray-700 mb-1">変換されたSSML:</div>
+                  <div class="text-xs font-semibold text-gray-700 mb-1">生成された調整コード:</div>
                   <div class="audio-ssml-preview-text text-xs font-mono text-gray-600 whitespace-pre-wrap">${segment.ssmlInstructions || ''}</div>
                 </div>
               </div>
@@ -1435,7 +1535,7 @@ function showAudioResult() {
         alert('SSML変換中にエラーが発生しました: ' + error.message);
       } finally {
         // Restore button
-        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>SSMLに変換';
+        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>音声を調整';
         e.target.disabled = false;
       }
     });
@@ -1550,6 +1650,16 @@ function showAudioResult() {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
     }
+  });
+  
+  // Pause/blank input change handler
+  document.querySelectorAll('.segment-pause-input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const pauseValue = parseFloat(e.target.value) || 0;
+      currentState.audioSegments[index].pauseAfter = pauseValue;
+      console.log(`ブランク更新: セグメント${index} → ${pauseValue}秒`);
+    });
   });
   
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
