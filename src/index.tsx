@@ -507,8 +507,8 @@ app.post('/api/generate-audio', async (c) => {
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
     }
     
-    // Google TTS API key
-    const GOOGLE_TTS_API_KEY = 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
+    // Google TTS API key from environment variable
+    const GOOGLE_TTS_API_KEY = c.env?.GOOGLE_TTS_API_KEY || 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
     
     // Use parsedLines if provided, otherwise parse script
     let lines = parsedLines && parsedLines.length > 0 ? parsedLines : parseScript(script)
