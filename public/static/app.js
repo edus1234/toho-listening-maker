@@ -1,8 +1,9 @@
 // State management
 let currentState = {
-  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'audioSettings'
+  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'audioSettings', 'userManagement'
   isAuthenticated: false,
   authToken: null,
+  isAdmin: false,
   formData: {
     format: 'monologue',
     topic: '',
@@ -24,7 +25,11 @@ let currentState = {
 function init() {
   // Check if token exists in localStorage
   const token = localStorage.getItem('authToken');
+  const isAdmin = localStorage.getItem('isAdmin') === '1';
+  
   if (token) {
+    // Restore state
+    currentState.isAdmin = isAdmin;
     // Verify token
     verifyToken(token);
   } else {
@@ -33,6 +38,20 @@ function init() {
   
   // Setup logout button
   setupLogoutButton();
+  
+  // Setup user management button
+  setupUserManagementButton();
+}
+
+// Setup user management button
+function setupUserManagementButton() {
+  const userManagementButton = document.getElementById('userManagementButton');
+  if (userManagementButton) {
+    userManagementButton.addEventListener('click', () => {
+      currentState.screen = 'userManagement';
+      renderScreen();
+    });
+  }
 }
 
 // Setup logout button
@@ -43,10 +62,12 @@ function setupLogoutButton() {
       if (confirm('ログアウトしますか？')) {
         // Clear token
         localStorage.removeItem('authToken');
+        localStorage.removeItem('isAdmin');
         
         // Reset state
         currentState.isAuthenticated = false;
         currentState.authToken = null;
+        currentState.isAdmin = false;
         currentState.screen = 'login';
         
         // Hide logout button
@@ -89,6 +110,12 @@ function showLogoutButton() {
   if (logoutButton) {
     logoutButton.classList.remove('hidden');
   }
+  
+  // Show user management button if admin
+  const userManagementButton = document.getElementById('userManagementButton');
+  if (userManagementButton && currentState.isAdmin) {
+    userManagementButton.classList.remove('hidden');
+  }
 }
 
 // Hide logout button
@@ -96,6 +123,12 @@ function hideLogoutButton() {
   const logoutButton = document.getElementById('logoutButton');
   if (logoutButton) {
     logoutButton.classList.add('hidden');
+  }
+  
+  // Hide user management button
+  const userManagementButton = document.getElementById('userManagementButton');
+  if (userManagementButton) {
+    userManagementButton.classList.add('hidden');
   }
 }
 
@@ -123,6 +156,9 @@ function renderScreen() {
     case 'review':
       appContainer.innerHTML = renderReviewScreen();
       attachReviewScreenListeners();
+      break;
+    case 'userManagement':
+      renderUserManagementScreen();
       break;
   }
 }
@@ -226,10 +262,12 @@ function attachLoginScreenListeners() {
       if (response.data.success) {
         // Save token to localStorage
         localStorage.setItem('authToken', response.data.token);
+        localStorage.setItem('isAdmin', response.data.is_admin ? '1' : '0');
         
         // Update state
         currentState.isAuthenticated = true;
         currentState.authToken = response.data.token;
+        currentState.isAdmin = response.data.is_admin;
         currentState.screen = 'input';
         
         // Show logout button
@@ -1785,6 +1823,355 @@ function showAudioResult() {
     renderScreen();
   });
 }
+
+// ========================================
+// User Management Admin Screen
+// ========================================
+
+function renderUserManagementScreen() {
+  const app = document.getElementById('app');
+  
+  app.innerHTML = `
+    <div class="bg-white rounded-lg shadow-lg p-6">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">
+          <i class="fas fa-users mr-2"></i>ユーザー管理
+        </h2>
+        <div class="space-x-2">
+          <button id="addUserButton" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+            <i class="fas fa-user-plus mr-2"></i>新規ユーザー追加
+          </button>
+          <button id="backToMainButton" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+            <i class="fas fa-arrow-left mr-2"></i>戻る
+          </button>
+        </div>
+      </div>
+      
+      <div id="usersTableContainer">
+        <div class="text-center py-8">
+          <i class="fas fa-spinner fa-spin text-4xl text-blue-500"></i>
+          <p class="mt-2 text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Add/Edit User Modal -->
+    <div id="userModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <h3 id="modalTitle" class="text-xl font-bold text-gray-800 mb-4">
+          <i class="fas fa-user-plus mr-2"></i>新規ユーザー追加
+        </h3>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ユーザー名 *</label>
+            <input type="text" id="modalUsername" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="3文字以上">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">パスワード *</label>
+            <input type="password" id="modalPassword" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="6文字以上">
+            <p id="passwordHint" class="text-xs text-gray-500 mt-1">新規作成時は必須、編集時は変更する場合のみ入力</p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+            <input type="email" id="modalEmail" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="例: user@example.com">
+          </div>
+          
+          <div class="flex items-center space-x-4">
+            <label class="flex items-center">
+              <input type="checkbox" id="modalIsAdmin" class="mr-2">
+              <span class="text-sm text-gray-700">管理者権限</span>
+            </label>
+            
+            <label class="flex items-center">
+              <input type="checkbox" id="modalIsActive" class="mr-2" checked>
+              <span class="text-sm text-gray-700">有効</span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-2 mt-6">
+          <button id="modalCancelButton" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition-colors">
+            キャンセル
+          </button>
+          <button id="modalSaveButton" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+            <i class="fas fa-save mr-2"></i>保存
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Load users
+  loadUsers();
+  
+  // Event listeners
+  document.getElementById('addUserButton').addEventListener('click', () => {
+    openUserModal();
+  });
+  
+  document.getElementById('backToMainButton').addEventListener('click', () => {
+    currentState.screen = 'input';
+    renderScreen();
+  });
+  
+  document.getElementById('modalCancelButton').addEventListener('click', () => {
+    closeUserModal();
+  });
+  
+  document.getElementById('modalSaveButton').addEventListener('click', () => {
+    saveUser();
+  });
+}
+
+async function loadUsers() {
+  try {
+    const token = localStorage.getItem('authToken');
+    
+    const response = await axios.get('/api/admin/users', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.data.success) {
+      displayUsersTable(response.data.users);
+    } else {
+      throw new Error(response.data.error || 'ユーザー一覧の取得に失敗しました');
+    }
+  } catch (error) {
+    console.error('Load users error:', error);
+    document.getElementById('usersTableContainer').innerHTML = `
+      <div class="text-center py-8">
+        <i class="fas fa-exclamation-triangle text-4xl text-red-500"></i>
+        <p class="mt-2 text-red-600">${error.response?.data?.error || error.message}</p>
+        <button onclick="loadUsers()" class="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">
+          再読み込み
+        </button>
+      </div>
+    `;
+  }
+}
+
+function displayUsersTable(users) {
+  const container = document.getElementById('usersTableContainer');
+  
+  if (users.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8">
+        <i class="fas fa-users text-4xl text-gray-400"></i>
+        <p class="mt-2 text-gray-600">ユーザーがまだ登録されていません</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ユーザー名</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メール</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">権限</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状態</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終ログイン</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          ${users.map(user => `
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${user.id}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.username}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.email || '-'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">
+                ${user.is_admin ? '<span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">管理者</span>' : '<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">一般</span>'}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">
+                ${user.is_active ? '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">有効</span>' : '<span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">無効</span>'}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.last_login_at ? new Date(user.last_login_at).toLocaleString('ja-JP') : '-'}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                <button onclick="editUser(${user.id})" class="text-blue-600 hover:text-blue-800">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteUser(${user.id}, '${user.username}')" class="text-red-600 hover:text-red-800">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openUserModal(userId = null) {
+  const modal = document.getElementById('userModal');
+  const title = document.getElementById('modalTitle');
+  const usernameInput = document.getElementById('modalUsername');
+  const passwordInput = document.getElementById('modalPassword');
+  const emailInput = document.getElementById('modalEmail');
+  const isAdminCheckbox = document.getElementById('modalIsAdmin');
+  const isActiveCheckbox = document.getElementById('modalIsActive');
+  const passwordHint = document.getElementById('passwordHint');
+  
+  if (userId) {
+    // Edit mode
+    title.innerHTML = '<i class="fas fa-user-edit mr-2"></i>ユーザー編集';
+    passwordHint.textContent = '変更する場合のみ入力してください';
+    
+    // Load user data
+    const token = localStorage.getItem('authToken');
+    axios.get('/api/admin/users', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(response => {
+      if (response.data.success) {
+        const user = response.data.users.find(u => u.id === userId);
+        if (user) {
+          usernameInput.value = user.username;
+          usernameInput.disabled = true; // Cannot change username
+          emailInput.value = user.email || '';
+          isAdminCheckbox.checked = user.is_admin === 1;
+          isActiveCheckbox.checked = user.is_active === 1;
+          passwordInput.value = '';
+          
+          modal.dataset.userId = userId;
+        }
+      }
+    });
+  } else {
+    // Add mode
+    title.innerHTML = '<i class="fas fa-user-plus mr-2"></i>新規ユーザー追加';
+    passwordHint.textContent = '6文字以上で入力してください';
+    usernameInput.value = '';
+    usernameInput.disabled = false;
+    passwordInput.value = '';
+    emailInput.value = '';
+    isAdminCheckbox.checked = false;
+    isActiveCheckbox.checked = true;
+    delete modal.dataset.userId;
+  }
+  
+  modal.classList.remove('hidden');
+}
+
+function closeUserModal() {
+  const modal = document.getElementById('userModal');
+  modal.classList.add('hidden');
+}
+
+async function saveUser() {
+  const modal = document.getElementById('userModal');
+  const userId = modal.dataset.userId;
+  const username = document.getElementById('modalUsername').value.trim();
+  const password = document.getElementById('modalPassword').value;
+  const email = document.getElementById('modalEmail').value.trim();
+  const isAdmin = document.getElementById('modalIsAdmin').checked;
+  const isActive = document.getElementById('modalIsActive').checked;
+  
+  // Validation
+  if (!userId && !username) {
+    alert('ユーザー名を入力してください');
+    return;
+  }
+  
+  if (!userId && !password) {
+    alert('パスワードを入力してください');
+    return;
+  }
+  
+  if (!userId && username.length < 3) {
+    alert('ユーザー名は3文字以上で入力してください');
+    return;
+  }
+  
+  if (password && password.length < 6) {
+    alert('パスワードは6文字以上で入力してください');
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const saveButton = document.getElementById('modalSaveButton');
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...';
+    
+    let response;
+    
+    if (userId) {
+      // Update user
+      response = await axios.put(`/api/admin/users/${userId}`, {
+        email,
+        is_admin: isAdmin,
+        is_active: isActive,
+        password: password || undefined
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } else {
+      // Create user
+      response = await axios.post('/api/admin/users', {
+        username,
+        password,
+        email,
+        is_admin: isAdmin
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    }
+    
+    if (response.data.success) {
+      closeUserModal();
+      loadUsers();
+      alert(response.data.message);
+    } else {
+      throw new Error(response.data.error || '保存に失敗しました');
+    }
+  } catch (error) {
+    console.error('Save user error:', error);
+    alert(error.response?.data?.error || error.message);
+  } finally {
+    const saveButton = document.getElementById('modalSaveButton');
+    saveButton.disabled = false;
+    saveButton.innerHTML = '<i class="fas fa-save mr-2"></i>保存';
+  }
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm(`ユーザー「${username}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    
+    const response = await axios.delete(`/api/admin/users/${userId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      loadUsers();
+      alert(response.data.message);
+    } else {
+      throw new Error(response.data.error || '削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Delete user error:', error);
+    alert(error.response?.data?.error || error.message);
+  }
+}
+
+window.editUser = function(userId) {
+  openUserModal(userId);
+};
+
+window.deleteUser = deleteUser;
 
 // Start the app
 init();

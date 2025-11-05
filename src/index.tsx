@@ -2,7 +2,43 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 
-const app = new Hono()
+// Type definitions
+type Bindings = {
+  DB: D1Database;
+  AUTH_USERNAME?: string;
+  AUTH_PASSWORD?: string;
+  OPENAI_API_KEY?: string;
+  GOOGLE_TTS_API_KEY?: string;
+}
+
+type User = {
+  id: number;
+  username: string;
+  password_hash: string;
+  email: string | null;
+  is_admin: number;
+  is_active: number;
+  created_at: string;
+  last_login_at: string | null;
+  updated_at: string;
+}
+
+// Password hashing utilities using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashHex
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password)
+  return passwordHash === hash
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
 
 // Enable CORS for API routes
 app.use('/api/*', cors())
@@ -21,24 +57,44 @@ app.post('/api/login', async (c) => {
     const body = await c.req.json()
     const { username, password } = body
     
-    const AUTH_USERNAME = c.env?.AUTH_USERNAME || 'admin'
-    const AUTH_PASSWORD = c.env?.AUTH_PASSWORD || 'listening2024'
+    // Query user from database
+    const user = await c.env.DB.prepare(
+      'SELECT * FROM users WHERE username = ? AND is_active = 1'
+    ).bind(username).first<User>()
     
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
-      // Simple token generation (in production, use JWT or proper session)
-      const token = Buffer.from(`${username}:${Date.now()}`).toString('base64')
-      return c.json({ 
-        success: true, 
-        token: token,
-        message: 'ログイン成功'
-      })
-    } else {
+    if (!user) {
       return c.json({ 
         success: false, 
         error: 'ユーザー名またはパスワードが正しくありません'
       }, 401)
     }
+    
+    // Verify password
+    const isValid = await verifyPassword(password, user.password_hash)
+    
+    if (!isValid) {
+      return c.json({ 
+        success: false, 
+        error: 'ユーザー名またはパスワードが正しくありません'
+      }, 401)
+    }
+    
+    // Update last login time
+    await c.env.DB.prepare(
+      'UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(user.id).run()
+    
+    // Generate token with user info
+    const token = Buffer.from(`${username}:${user.id}:${Date.now()}`).toString('base64')
+    
+    return c.json({ 
+      success: true, 
+      token: token,
+      is_admin: user.is_admin === 1,
+      message: 'ログイン成功'
+    })
   } catch (error: any) {
+    console.error('Login error:', error)
     return c.json({ 
       success: false, 
       error: 'ログイン処理中にエラーが発生しました'
@@ -787,9 +843,14 @@ app.get('/', (c) => {
                         </h1>
                         <p class="text-gray-600">英語のリスニング原稿・音声・問題を自動で作成</p>
                     </div>
-                    <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
-                        <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
-                    </button>
+                    <div class="flex gap-2">
+                        <button id="userManagementButton" class="hidden bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                            <i class="fas fa-users mr-2"></i>ユーザー管理
+                        </button>
+                        <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+                            <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -802,6 +863,183 @@ app.get('/', (c) => {
     </body>
     </html>
   `)
+})
+
+// ========================================
+// User Management API Routes
+// ========================================
+
+// Middleware to check if user is admin
+async function requireAdmin(c: any, next: any) {
+  try {
+    const authHeader = c.req.header('Authorization')
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.substring(7)
+    
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const [username, userId] = decoded.split(':')
+      
+      // Check if user exists and is admin
+      const user = await c.env.DB.prepare(
+        'SELECT * FROM users WHERE id = ? AND is_admin = 1 AND is_active = 1'
+      ).bind(userId).first<User>()
+      
+      if (!user) {
+        return c.json({ success: false, error: '管理者権限が必要です' }, 403)
+      }
+      
+      c.set('currentUser', user)
+      await next()
+    } catch (e) {
+      return c.json({ success: false, error: '無効なトークンです' }, 401)
+    }
+  } catch (error: any) {
+    return c.json({ success: false, error: '認証エラーが発生しました' }, 500)
+  }
+}
+
+// Get all users (admin only)
+app.get('/api/admin/users', requireAdmin, async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT id, username, email, is_admin, is_active, created_at, last_login_at FROM users ORDER BY created_at DESC'
+    ).all()
+    
+    return c.json({ success: true, users: results })
+  } catch (error: any) {
+    console.error('Get users error:', error)
+    return c.json({ success: false, error: 'ユーザー一覧の取得に失敗しました' }, 500)
+  }
+})
+
+// Create new user (admin only)
+app.post('/api/admin/users', requireAdmin, async (c) => {
+  try {
+    const body = await c.req.json()
+    const { username, password, email, is_admin } = body
+    
+    // Validate input
+    if (!username || !password) {
+      return c.json({ success: false, error: 'ユーザー名とパスワードは必須です' }, 400)
+    }
+    
+    if (username.length < 3) {
+      return c.json({ success: false, error: 'ユーザー名は3文字以上である必要があります' }, 400)
+    }
+    
+    if (password.length < 6) {
+      return c.json({ success: false, error: 'パスワードは6文字以上である必要があります' }, 400)
+    }
+    
+    // Check if username already exists
+    const existingUser = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE username = ?'
+    ).bind(username).first()
+    
+    if (existingUser) {
+      return c.json({ success: false, error: 'このユーザー名は既に使用されています' }, 400)
+    }
+    
+    // Hash password
+    const passwordHash = await hashPassword(password)
+    
+    // Insert user
+    const result = await c.env.DB.prepare(
+      'INSERT INTO users (username, password_hash, email, is_admin, is_active) VALUES (?, ?, ?, ?, 1)'
+    ).bind(username, passwordHash, email || null, is_admin ? 1 : 0).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'ユーザーを作成しました',
+      user_id: result.meta.last_row_id
+    })
+  } catch (error: any) {
+    console.error('Create user error:', error)
+    return c.json({ success: false, error: 'ユーザーの作成に失敗しました' }, 500)
+  }
+})
+
+// Update user (admin only)
+app.put('/api/admin/users/:id', requireAdmin, async (c) => {
+  try {
+    const userId = c.req.param('id')
+    const body = await c.req.json()
+    const { email, is_admin, is_active, password } = body
+    
+    // Check if user exists
+    const user = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE id = ?'
+    ).bind(userId).first()
+    
+    if (!user) {
+      return c.json({ success: false, error: 'ユーザーが見つかりません' }, 404)
+    }
+    
+    // Update user fields
+    if (password) {
+      // Update password if provided
+      if (password.length < 6) {
+        return c.json({ success: false, error: 'パスワードは6文字以上である必要があります' }, 400)
+      }
+      const passwordHash = await hashPassword(password)
+      await c.env.DB.prepare(
+        'UPDATE users SET password_hash = ?, email = ?, is_admin = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(passwordHash, email || null, is_admin ? 1 : 0, is_active ? 1 : 0, userId).run()
+    } else {
+      // Update without changing password
+      await c.env.DB.prepare(
+        'UPDATE users SET email = ?, is_admin = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(email || null, is_admin ? 1 : 0, is_active ? 1 : 0, userId).run()
+    }
+    
+    return c.json({ 
+      success: true, 
+      message: 'ユーザー情報を更新しました'
+    })
+  } catch (error: any) {
+    console.error('Update user error:', error)
+    return c.json({ success: false, error: 'ユーザー情報の更新に失敗しました' }, 500)
+  }
+})
+
+// Delete user (admin only)
+app.delete('/api/admin/users/:id', requireAdmin, async (c) => {
+  try {
+    const userId = c.req.param('id')
+    const currentUser = c.get('currentUser')
+    
+    // Prevent deleting self
+    if (currentUser.id === parseInt(userId)) {
+      return c.json({ success: false, error: '自分自身を削除することはできません' }, 400)
+    }
+    
+    // Check if user exists
+    const user = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE id = ?'
+    ).bind(userId).first()
+    
+    if (!user) {
+      return c.json({ success: false, error: 'ユーザーが見つかりません' }, 404)
+    }
+    
+    // Delete user
+    await c.env.DB.prepare(
+      'DELETE FROM users WHERE id = ?'
+    ).bind(userId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'ユーザーを削除しました'
+    })
+  } catch (error: any) {
+    console.error('Delete user error:', error)
+    return c.json({ success: false, error: 'ユーザーの削除に失敗しました' }, 500)
+  }
 })
 
 export default app
