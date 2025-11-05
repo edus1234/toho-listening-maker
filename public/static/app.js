@@ -1,6 +1,6 @@
 // State management
 let currentState = {
-  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'audioSettings', 'userManagement'
+  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'userManagement'
   isAuthenticated: false,
   authToken: null,
   isAdmin: false,
@@ -149,10 +149,6 @@ function renderScreen() {
     case 'input':
       appContainer.innerHTML = renderInputScreen();
       attachInputScreenListeners();
-      break;
-    case 'audioSettings':
-      appContainer.innerHTML = renderAudioSettingsScreen();
-      attachAudioSettingsListeners();
       break;
     case 'questionSettings':
       appContainer.innerHTML = renderQuestionSettingsScreen();
@@ -592,8 +588,9 @@ function attachInputScreenListeners() {
       speed: 1.0
     }));
     
-    // Move to audio settings screen
-    currentState.screen = 'audioSettings';
+    // Move to review screen (skip audio settings)
+    currentState.generatedQuestions = []; // No questions for pasted scripts
+    currentState.screen = 'review';
     renderScreen();
   });
   
@@ -1105,12 +1102,78 @@ function attachReviewScreenListeners() {
   });
   
   generateAudioButton.addEventListener('click', () => {
-    // Parse script to prepare for detailed settings
+    // Parse script and generate audio directly (skip audio settings screen)
     const lines = parseScriptForSettings(currentState.generatedScript);
     currentState.parsedLines = lines;
-    currentState.screen = 'audioSettings';
-    renderScreen();
+    
+    // Initialize default speaker and question reader settings if not exists
+    if (!currentState.questionReader) {
+      currentState.questionReader = {
+        gender: 'male',
+        accent: 'US',
+        speed: 1.0,
+        questionPause: 2.0,
+        optionPause: 0.5
+      };
+    }
+    
+    // Ensure all speakers have default settings
+    currentState.speakers = currentState.speakers.map(speaker => ({
+      name: speaker.name,
+      accent: speaker.accent || 'US',
+      gender: speaker.gender || 'male',
+      speed: speaker.speed || 1.0
+    }));
+    
+    // Start audio generation immediately
+    generateAudioFromParsedLines();
   });
+}
+
+// Generate audio from parsed lines (extracted from audio settings)
+async function generateAudioFromParsedLines() {
+  // Show loading
+  const appContainer = document.getElementById('app');
+  appContainer.innerHTML = `
+    <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
+      <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mb-4"></div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">音声を生成中...</h2>
+      <p class="text-gray-600">しばらくお待ちください</p>
+    </div>
+  `;
+  
+  try {
+    // Prepare API request with parsed lines and question reader config
+    const requestData = {
+      script: currentState.generatedScript,
+      speakers: currentState.speakers,
+      parsedLines: currentState.parsedLines || [],
+      questions: currentState.generatedQuestions || [],
+      questionReader: currentState.questionReader || {
+        gender: 'male',
+        accent: 'US',
+        speed: 1.0,
+        questionPause: 2.0,
+        optionPause: 0.5
+      }
+    };
+    
+    // Call API to generate audio
+    const response = await axios.post('/api/generate-audio', requestData);
+    
+    if (response.data.success) {
+      currentState.audioSegments = response.data.audioSegments;
+      showAudioResult();
+    } else {
+      alert('音声生成に失敗しました: ' + response.data.error);
+      currentState.screen = 'review';
+      renderScreen();
+    }
+  } catch (error) {
+    alert('音声生成エラー: ' + error.message);
+    currentState.screen = 'review';
+    renderScreen();
+  }
 }
 
 // Parse script for detailed settings
@@ -1152,338 +1215,8 @@ function parseScriptForSettings(script) {
   return lines;
 }
 
-// Render audio settings screen
-function renderAudioSettingsScreen() {
-  // Render parsed lines with pause settings and SSML instructions
-  const linesHTML = (currentState.parsedLines || []).map((line, index) => `
-    <div class="border-l-4 border-${line.type === 'narration' ? 'purple' : 'blue'}-500 pl-4 mb-4 bg-gray-50 p-3 rounded">
-      <div class="flex items-start justify-between gap-3 mb-2">
-        <div class="flex-1">
-          <div class="font-semibold text-sm text-gray-700">${line.type === 'narration' ? '📖 ナレーション' : '💬 ' + line.speaker}</div>
-          <div class="text-gray-600 text-sm mt-1">${line.text}</div>
-        </div>
-        <div class="w-32 flex-shrink-0">
-          <label class="text-xs text-gray-600">後のブランク（秒）</label>
-          <input type="number" min="0" max="10" step="0.5" value="${line.pauseAfter || 0}"
-                 class="line-pause w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-                 data-line-index="${index}">
-        </div>
-      </div>
-    </div>
-  `).join('');
-  
-  // Render question settings if questions exist
-  const questionsHTML = currentState.generatedQuestions.length > 0 ? `
-    <div class="border-2 border-purple-200 rounded-lg p-4 mb-4 bg-purple-50">
-      <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
-        <i class="fas fa-question-circle mr-2 text-purple-600"></i>
-        問題読み上げ設定
-      </h3>
-      
-      <div class="space-y-4 mb-4">
-        <!-- Question Reader Gender -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-venus-mars mr-1"></i>性別
-          </label>
-          <select id="questionGender" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-            <option value="male">男声</option>
-            <option value="female">女声</option>
-          </select>
-        </div>
-        
-        <!-- Question Reader Accent -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-globe mr-1"></i>アクセント
-          </label>
-          <select id="questionAccent" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-            <option value="US">アメリカ英語 (US)</option>
-            <option value="UK">イギリス英語 (UK)</option>
-            <option value="Australian">オーストラリア英語</option>
-            <option value="Canadian">カナダ英語</option>
-            <option value="Indian">インド英語</option>
-          </select>
-        </div>
-        
-        <!-- Question Reader Speed -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-tachometer-alt mr-1"></i>速度: <span id="questionSpeedValue">1.0x</span>
-          </label>
-          <input type="range" min="0.5" max="1.5" step="0.1" value="1.0"
-                 id="questionSpeed" class="w-full h-2 bg-gray-200 rounded-lg">
-        </div>
-        
-        <!-- Pause settings -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-              問題後のブランク（秒）
-            </label>
-            <input type="number" min="0" max="10" step="0.5" value="2"
-                   id="questionPause" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-              選択肢間のブランク（秒）
-            </label>
-            <input type="number" min="0" max="5" step="0.5" value="0.5"
-                   id="optionPause" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-          </div>
-        </div>
-      </div>
-    </div>
-  ` : '';
-  
-  const speakersHTML = currentState.speakers.map((speaker, index) => `
-    <div class="border-2 border-gray-200 rounded-lg p-4 mb-4">
-      <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
-        <i class="fas fa-user mr-2 text-indigo-600"></i>
-        話者${index + 1}: ${speaker.name}
-      </h3>
-      
-      <div class="space-y-4">
-        <!-- Gender Selection -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-venus-mars mr-1"></i>性別
-          </label>
-          <select class="speaker-gender w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" data-speaker-index="${index}">
-            <option value="male" ${(speaker.gender || 'male') === 'male' ? 'selected' : ''}>男声</option>
-            <option value="female" ${(speaker.gender || 'male') === 'female' ? 'selected' : ''}>女声</option>
-          </select>
-        </div>
-        
-        <!-- Accent Selection -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-globe mr-1"></i>アクセント
-          </label>
-          <select class="speaker-accent w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" data-speaker-index="${index}">
-            <option value="US" ${speaker.accent === 'US' ? 'selected' : ''}>アメリカ英語 (US)</option>
-            <option value="UK" ${speaker.accent === 'UK' ? 'selected' : ''}>イギリス英語 (UK)</option>
-            <option value="Australian" ${speaker.accent === 'Australian' ? 'selected' : ''}>オーストラリア英語</option>
-            <option value="Canadian" ${speaker.accent === 'Canadian' ? 'selected' : ''}>カナダ英語</option>
-            <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド英語</option>
-            <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド英語</option>
-            <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド英語</option>
-          </select>
-        </div>
-        
-        <!-- Speed Control -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-2">
-            <i class="fas fa-tachometer-alt mr-1"></i>速度: <span class="speed-value">${speaker.speed}x</span>
-          </label>
-          <input type="range" min="0.5" max="1.5" step="0.1" value="${speaker.speed}"
-                 class="speaker-speed w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                 data-speaker-index="${index}">
-          <div class="flex justify-between text-xs text-gray-500 mt-1">
-            <span>遅い (0.5x)</span>
-            <span>標準 (1.0x)</span>
-            <span>速い (1.5x)</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-  
-  return `
-    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-        <i class="fas fa-microphone-alt mr-3 text-indigo-600"></i>
-        音声設定
-      </h2>
-      
-      <p class="text-gray-600 mb-6">
-        スクリプトの各セリフのブランク、話者のアクセント、速度、問題読み上げ設定を調整してください。
-      </p>
-      
-      <!-- Script Lines with Pause Controls -->
-      <div class="mb-6">
-        <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-align-left mr-2 text-blue-600"></i>
-          スクリプトとブランク設定
-        </h3>
-        <div class="space-y-2">
-          ${linesHTML}
-        </div>
-      </div>
-      
-      <!-- Question Reader Settings -->
-      ${questionsHTML}
-      
-      <!-- Speaker Settings -->
-      <div class="mb-6">
-        <h3 class="font-semibold text-gray-800 mb-3 flex items-center">
-          <i class="fas fa-users mr-2 text-indigo-600"></i>
-          話者設定
-        </h3>
-        ${speakersHTML}
-      </div>
-      
-      <div class="flex gap-4">
-        <button id="backToReviewButton"
-                class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
-          <i class="fas fa-arrow-left mr-2"></i>スクリプトに戻る
-        </button>
-        <button id="startAudioGenerationButton"
-                class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition shadow-md">
-          <i class="fas fa-magic mr-2"></i>音声を生成
-        </button>
-      </div>
-    </div>
-  `;
-}
 
-// Attach listeners for audio settings screen
-function attachAudioSettingsListeners() {
-  const backToReviewButton = document.getElementById('backToReviewButton');
-  const startAudioGenerationButton = document.getElementById('startAudioGenerationButton');
-  
-  // Initialize question reader config if not exists
-  if (!currentState.questionReader) {
-    currentState.questionReader = {
-      gender: 'male',
-      accent: 'US',
-      speed: 1.0,
-      questionPause: 2.0,
-      optionPause: 0.5
-    };
-  }
-  
-  // Update line pause settings
-  document.querySelectorAll('.line-pause').forEach(input => {
-    input.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.lineIndex);
-      const pause = parseFloat(e.target.value) || 0;
-      currentState.parsedLines[index].pauseAfter = pause;
-    });
-  });
-  
-  // Update question reader gender
-  const questionGender = document.getElementById('questionGender');
-  if (questionGender) {
-    questionGender.addEventListener('change', (e) => {
-      currentState.questionReader.gender = e.target.value;
-    });
-  }
-  
-  // Update question reader accent
-  const questionAccent = document.getElementById('questionAccent');
-  if (questionAccent) {
-    questionAccent.addEventListener('change', (e) => {
-      currentState.questionReader.accent = e.target.value;
-    });
-  }
-  
-  // Update question reader speed
-  const questionSpeed = document.getElementById('questionSpeed');
-  const questionSpeedValue = document.getElementById('questionSpeedValue');
-  if (questionSpeed && questionSpeedValue) {
-    questionSpeed.addEventListener('input', (e) => {
-      const speed = parseFloat(e.target.value);
-      currentState.questionReader.speed = speed;
-      questionSpeedValue.textContent = speed.toFixed(1) + 'x';
-    });
-  }
-  
-  // Update question pause
-  const questionPause = document.getElementById('questionPause');
-  if (questionPause) {
-    questionPause.addEventListener('input', (e) => {
-      currentState.questionReader.questionPause = parseFloat(e.target.value) || 0;
-    });
-  }
-  
-  // Update option pause
-  const optionPause = document.getElementById('optionPause');
-  if (optionPause) {
-    optionPause.addEventListener('input', (e) => {
-      currentState.questionReader.optionPause = parseFloat(e.target.value) || 0;
-    });
-  }
-  
-  // Update speaker gender
-  document.querySelectorAll('.speaker-gender').forEach(select => {
-    select.addEventListener('change', (e) => {
-      const index = parseInt(e.target.dataset.speakerIndex);
-      currentState.speakers[index].gender = e.target.value;
-    });
-  });
-  
-  // Update speaker accent
-  document.querySelectorAll('.speaker-accent').forEach(select => {
-    select.addEventListener('change', (e) => {
-      const index = parseInt(e.target.dataset.speakerIndex);
-      currentState.speakers[index].accent = e.target.value;
-    });
-  });
-  
-  // Update speaker speed
-  document.querySelectorAll('.speaker-speed').forEach(slider => {
-    slider.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.speakerIndex);
-      const speed = parseFloat(e.target.value);
-      currentState.speakers[index].speed = speed;
-      
-      // Update display
-      const valueSpan = e.target.closest('.space-y-4').querySelector('.speed-value');
-      valueSpan.textContent = speed.toFixed(1) + 'x';
-    });
-  });
-  
-  backToReviewButton.addEventListener('click', () => {
-    currentState.screen = 'review';
-    renderScreen();
-  });
-  
-  startAudioGenerationButton.addEventListener('click', async () => {
-    // Show loading
-    const appContainer = document.getElementById('app');
-    appContainer.innerHTML = `
-      <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
-        <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mb-4"></div>
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">音声を生成中...</h2>
-        <p class="text-gray-600">しばらくお待ちください</p>
-      </div>
-    `;
-    
-    try {
-      // Prepare API request with parsed lines and question reader config
-      const requestData = {
-        script: currentState.generatedScript,
-        speakers: currentState.speakers,
-        parsedLines: currentState.parsedLines || [],
-        questions: currentState.generatedQuestions || [],
-        questionReader: currentState.questionReader || {
-          gender: 'male',
-          accent: 'US',
-          speed: 1.0,
-          questionPause: 2.0,
-          optionPause: 0.5
-        }
-      };
-      
-      // Call API to generate audio
-      const response = await axios.post('/api/generate-audio', requestData);
-      
-      if (response.data.success) {
-        currentState.audioSegments = response.data.audioSegments;
-        showAudioResult();
-      } else {
-        alert('音声生成に失敗しました: ' + response.data.error);
-        currentState.screen = 'audioSettings';
-        renderScreen();
-      }
-    } catch (error) {
-      alert('音声生成エラー: ' + error.message);
-      currentState.screen = 'audioSettings';
-      renderScreen();
-    }
-  });
-}
+// Old attachAudioSettingsListeners function removed - audio settings screen no longer exists
 
 // Play audio segments sequentially
 let currentAudioIndex = 0;
