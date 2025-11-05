@@ -593,6 +593,12 @@ app.post('/api/generate-audio', async (c) => {
       if (!response.ok) {
         const errorData = await response.json()
         console.error('Google TTS error:', errorData)
+        
+        // Check for quota exhausted error
+        if (errorData.error?.code === 429 || errorData.error?.status === 'RESOURCE_EXHAUSTED') {
+          throw new Error('Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。月1M文字（約1万分の音声）まで無料です。')
+        }
+        
         throw new Error(`Google TTS API エラー: ${errorData.error?.message || 'Unknown error'}`)
       }
       

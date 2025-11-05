@@ -1126,47 +1126,6 @@ function renderAudioSettingsScreen() {
                  data-line-index="${index}">
         </div>
       </div>
-      
-      <!-- Natural Language Instructions -->
-      <div class="mt-2">
-        <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 mb-1 toggle-voice-instructions" data-line-index="${index}">
-          <i class="fas fa-magic mr-1"></i>音声指示を追加/編集
-        </button>
-        <div class="voice-instructions-container hidden" data-line-index="${index}">
-          <div class="mb-2">
-            <textarea 
-              class="line-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-              data-line-index="${index}"
-              rows="2"
-              placeholder="自然な言葉で指示してください。例：&#10;• noticedの前に0.5秒のブランク&#10;• ？を上げ調子のイントネーションで読む&#10;• 笑いながら"
-            >${line.voiceInstructions || ''}</textarea>
-          </div>
-          
-          <div class="flex gap-2 mb-2">
-            <button type="button" class="convert-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-line-index="${index}">
-              <i class="fas fa-magic mr-1"></i>SSMLに変換
-            </button>
-            <button type="button" class="clear-instruction-btn bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-line-index="${index}">
-              <i class="fas fa-times mr-1"></i>クリア
-            </button>
-          </div>
-          
-          <div class="ssml-preview hidden bg-gray-50 p-2 rounded border border-gray-200" data-line-index="${index}">
-            <div class="text-xs font-semibold text-gray-700 mb-1">変換されたSSML:</div>
-            <div class="ssml-preview-text text-xs font-mono text-gray-600 whitespace-pre-wrap">${line.ssmlInstructions || ''}</div>
-          </div>
-          
-          <div class="text-xs text-gray-500 mt-2 bg-blue-50 p-2 rounded">
-            <strong>💡 指示の例:</strong><br/>
-            • <code class="bg-white px-1 rounded">importantの前に0.5秒のブランク</code><br/>
-            • <code class="bg-white px-1 rounded">？を上げ調子のイントネーションで読む</code><br/>
-            • <code class="bg-white px-1 rounded">笑いながら</code><br/>
-            • <code class="bg-white px-1 rounded">fastという単語を速く読む</code><br/>
-            • <code class="bg-white px-1 rounded">全体をゆっくり読む</code><br/>
-            • <code class="bg-white px-1 rounded">カンマの後に0.3秒の間</code>
-          </div>
-        </div>
-      </div>
     </div>
   `).join('');
   
@@ -1351,94 +1310,12 @@ function attachAudioSettingsListeners() {
     };
   }
   
-  // Toggle voice instructions display
-  document.querySelectorAll('.toggle-voice-instructions').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.closest('button').dataset.lineIndex);
-      const container = document.querySelector(`.voice-instructions-container[data-line-index="${index}"]`);
-      container.classList.toggle('hidden');
-    });
-  });
-  
   // Update line pause settings
   document.querySelectorAll('.line-pause').forEach(input => {
     input.addEventListener('input', (e) => {
       const index = parseInt(e.target.dataset.lineIndex);
       const pause = parseFloat(e.target.value) || 0;
       currentState.parsedLines[index].pauseAfter = pause;
-    });
-  });
-  
-  // Update voice instructions (natural language)
-  document.querySelectorAll('.line-voice-instruction').forEach(textarea => {
-    textarea.addEventListener('input', (e) => {
-      const index = parseInt(e.target.dataset.lineIndex);
-      currentState.parsedLines[index].voiceInstructions = e.target.value;
-    });
-  });
-  
-  // Convert natural language to SSML
-  document.querySelectorAll('.convert-to-ssml-btn').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const index = parseInt(e.target.closest('button').dataset.lineIndex);
-      const line = currentState.parsedLines[index];
-      const instructions = line.voiceInstructions;
-      
-      if (!instructions || !instructions.trim()) {
-        alert('音声指示を入力してください');
-        return;
-      }
-      
-      // Show loading
-      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>変換中...';
-      e.target.disabled = true;
-      
-      try {
-        const response = await axios.post('/api/convert-to-ssml', {
-          text: line.text,
-          instructions: instructions
-        });
-        
-        if (response.data.success) {
-          // Update SSML instructions
-          currentState.parsedLines[index].ssmlInstructions = response.data.ssml;
-          
-          // Show preview
-          const preview = document.querySelector(`.ssml-preview[data-line-index="${index}"]`);
-          const previewText = preview.querySelector('.ssml-preview-text');
-          previewText.textContent = response.data.ssml;
-          preview.classList.remove('hidden');
-          
-          console.log(`✅ SSML変換完了 - トークン: ${response.data.tokensUsed}, コスト: $${response.data.estimatedCost}`);
-        } else {
-          alert('SSML変換エラー: ' + response.data.error);
-        }
-      } catch (error) {
-        alert('SSML変換中にエラーが発生しました: ' + error.message);
-      } finally {
-        // Restore button
-        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>SSMLに変換';
-        e.target.disabled = false;
-      }
-    });
-  });
-  
-  // Clear instruction button
-  document.querySelectorAll('.clear-instruction-btn').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.closest('button').dataset.lineIndex);
-      
-      // Clear voice instructions
-      const textarea = document.querySelector(`.line-voice-instruction[data-line-index="${index}"]`);
-      if (textarea) textarea.value = '';
-      
-      // Clear SSML
-      currentState.parsedLines[index].voiceInstructions = '';
-      currentState.parsedLines[index].ssmlInstructions = '';
-      
-      // Hide preview
-      const preview = document.querySelector(`.ssml-preview[data-line-index="${index}"]`);
-      if (preview) preview.classList.add('hidden');
     });
   });
   
