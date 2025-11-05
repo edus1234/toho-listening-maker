@@ -1388,12 +1388,17 @@ function showAudioResult() {
                   </div>
                 </div>
                 
+                <div class="mb-2 p-2 bg-gray-100 rounded text-xs">
+                  <div class="font-semibold text-gray-700 mb-1">元のテキスト:</div>
+                  <div class="text-gray-800">${segment.text || ''}</div>
+                </div>
+                
                 <textarea 
                   class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
                   data-segment-index="${index}"
                   rows="3"
-                  placeholder="テキストにマークを挿入してください。例：&#10;I [0.5秒間] noticed [強調]something[/強調] important[↑]?"
-                >${segment.voiceInstructions || ''}</textarea>
+                  placeholder="上のテキストをコピーして、マークを挿入してください"
+                >${segment.voiceInstructions || segment.text || ''}</textarea>
                 
                 <div class="flex gap-2 mt-2">
                   <button type="button" class="convert-audio-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-segment-index="${index}">
@@ -1646,24 +1651,33 @@ function showAudioResult() {
           throw new Error('話者が見つかりません');
         }
         
-        // Prepare text with SSML if available
-        const textToSpeak = segment.ssmlInstructions || segment.text;
+        // Prepare parsedLine for single segment regeneration
+        const parsedLine = {
+          speaker: segment.speaker,
+          text: segment.text,
+          type: segment.type || 'dialogue',
+          pauseAfter: segment.pauseAfter || 0.5,
+          ssmlInstructions: segment.ssmlInstructions || '',
+          voiceInstructions: segment.voiceInstructions || ''
+        };
         
-        // Generate audio
+        // Generate audio using the full API with single segment
         const response = await axios.post('/api/generate-audio', {
-          text: textToSpeak,
-          accent: speaker.accent,
-          gender: speaker.gender,
-          speed: speaker.speed
+          script: segment.text,
+          speakers: [speaker],
+          parsedLines: [parsedLine],
+          questions: [],
+          questionReader: null
         });
         
-        if (response.data.success) {
+        if (response.data.success && response.data.audioSegments && response.data.audioSegments.length > 0) {
           // Update audio in state
-          currentState.audioSegments[index].audio = response.data.audio;
+          const newAudio = response.data.audioSegments[0].audio;
+          currentState.audioSegments[index].audio = newAudio;
           
           // Update audio element
           const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
-          audioElement.src = `data:audio/mp3;base64,${response.data.audio}`;
+          audioElement.src = `data:audio/mp3;base64,${newAudio}`;
           audioElement.load();
           
           // Play the new audio
@@ -1671,10 +1685,11 @@ function showAudioResult() {
           
           alert('✅ 音声を再生成しました');
         } else {
-          alert('音声生成エラー: ' + response.data.error);
+          alert('音声生成エラー: ' + (response.data.error || '音声セグメントが生成されませんでした'));
         }
       } catch (error) {
-        alert('音声再生成中にエラーが発生しました: ' + error.message);
+        console.error('Regeneration error:', error);
+        alert('音声再生成中にエラーが発生しました: ' + (error.response?.data?.error || error.message));
       } finally {
         // Restore button
         e.target.innerHTML = '<i class="fas fa-redo mr-1"></i>音声再生成';
