@@ -111,10 +111,15 @@ function showLogoutButton() {
     logoutButton.classList.remove('hidden');
   }
   
-  // Show user management button if admin
+  // Show user management button ONLY if admin
   const userManagementButton = document.getElementById('userManagementButton');
-  if (userManagementButton && currentState.isAdmin) {
-    userManagementButton.classList.remove('hidden');
+  if (userManagementButton) {
+    if (currentState.isAdmin) {
+      userManagementButton.classList.remove('hidden');
+    } else {
+      // Ensure button is hidden for non-admin users
+      userManagementButton.classList.add('hidden');
+    }
   }
 }
 
@@ -752,7 +757,7 @@ async function generateScript() {
     <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
       <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-4"></div>
       <h2 class="text-2xl font-bold text-gray-800 mb-2">AIがスクリプトを生成中...</h2>
-      <p class="text-gray-600" id="generation-status">GPT-4o mini を使用しています...</p>
+      <p class="text-gray-600" id="generation-status">しばらくお待ちください...</p>
     </div>
   `;
   
