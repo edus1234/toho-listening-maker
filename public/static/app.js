@@ -1651,14 +1651,43 @@ function showAudioResult() {
           throw new Error('話者が見つかりません');
         }
         
+        // ★★★ CRITICAL FIX: Read current textarea value with marks ★★★
+        const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+        const currentTextWithMarks = textarea ? textarea.value : segment.text;
+        
+        // Check if text contains marks that need conversion
+        const hasMarks = /\[(0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり)\]/.test(currentTextWithMarks);
+        
+        let ssmlToUse = segment.ssmlInstructions || '';
+        
+        // If marks are present, convert them to SSML first
+        if (hasMarks) {
+          try {
+            const conversionResponse = await axios.post('/api/convert-to-ssml', {
+              text: segment.text,
+              instructions: currentTextWithMarks
+            });
+            
+            if (conversionResponse.data.success) {
+              ssmlToUse = conversionResponse.data.ssml;
+              // Update the segment state with converted SSML
+              segment.ssmlInstructions = ssmlToUse;
+              segment.voiceInstructions = currentTextWithMarks;
+            }
+          } catch (convError) {
+            console.error('Mark conversion error:', convError);
+            // Continue with old SSML if conversion fails
+          }
+        }
+        
         // Prepare parsedLine for single segment regeneration
         const parsedLine = {
           speaker: segment.speaker,
           text: segment.text,
           type: segment.type || 'dialogue',
           pauseAfter: segment.pauseAfter || 0.5,
-          ssmlInstructions: segment.ssmlInstructions || '',
-          voiceInstructions: segment.voiceInstructions || ''
+          ssmlInstructions: ssmlToUse,
+          voiceInstructions: currentTextWithMarks
         };
         
         // Generate audio using the full API with single segment

@@ -385,30 +385,54 @@ app.post('/api/convert-to-ssml', async (c) => {
       // Direct mark-to-SSML conversion without AI
       let convertedText = instructions
       
-      // Convert pause marks
+      // STEP 1: Convert emphasis marks first (with closing tags)
+      convertedText = convertedText.replace(/\[強調\]\s*([^[\]]+?)\s*\[\/強調\]/g, '<emphasis level="strong">$1</emphasis>')
+      // Auto-close if no closing tag found - match until next mark or punctuation
+      convertedText = convertedText.replace(/\[強調\]\s*([^[\]。、！？\.,!?\n]+)/g, '<emphasis level="strong">$1</emphasis>')
+      
+      // STEP 2: Convert speed marks (with closing tags)
+      convertedText = convertedText.replace(/\[速く\]\s*([^[\]]+?)\s*\[\/速く\]/g, '<prosody rate="130%">$1</prosody>')
+      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]]+?)\s*\[\/ゆっくり\]/g, '<prosody rate="80%">$1</prosody>')
+      // Auto-close if no closing tag found
+      convertedText = convertedText.replace(/\[速く\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="130%">$1</prosody>')
+      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="80%">$1</prosody>')
+      
+      // STEP 3: Convert pitch marks - wrap next word/phrase until next mark or punctuation
+      convertedText = convertedText.replace(/\[↑\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+15%">$1</prosody>')
+      convertedText = convertedText.replace(/\[↓\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-15%">$1</prosody>')
+      
+      // STEP 4: Convert pause marks last (they don't interfere with other tags)
       convertedText = convertedText.replace(/\[0\.5秒間\]/g, '<break time="0.5s"/>')
       convertedText = convertedText.replace(/\[1秒間\]/g, '<break time="1s"/>')
       convertedText = convertedText.replace(/\[2秒間\]/g, '<break time="2s"/>')
       
-      // Convert pitch marks
-      convertedText = convertedText.replace(/\[↑\]/g, '<prosody pitch="+15%">')
-      convertedText = convertedText.replace(/\[↓\]/g, '<prosody pitch="-15%">')
+      // Remove any remaining closing marks that weren't matched
+      convertedText = convertedText.replace(/\[\/強調\]/g, '')
+      convertedText = convertedText.replace(/\[\/速く\]/g, '')
+      convertedText = convertedText.replace(/\[\/ゆっくり\]/g, '')
       
-      // Convert emphasis marks
-      convertedText = convertedText.replace(/\[強調\]/g, '<emphasis level="strong">')
-      convertedText = convertedText.replace(/\[\/強調\]/g, '</emphasis>')
+      // Remove any remaining unconverted marks to prevent SSML errors
+      convertedText = convertedText.replace(/\[↑\]/g, '')
+      convertedText = convertedText.replace(/\[↓\]/g, '')
+      convertedText = convertedText.replace(/\[強調\]/g, '')
+      convertedText = convertedText.replace(/\[速く\]/g, '')
+      convertedText = convertedText.replace(/\[ゆっくり\]/g, '')
+      convertedText = convertedText.replace(/\[0\.5秒間\]/g, '')
+      convertedText = convertedText.replace(/\[1秒間\]/g, '')
+      convertedText = convertedText.replace(/\[2秒間\]/g, '')
       
-      // Convert speed marks
-      convertedText = convertedText.replace(/\[速く\]/g, '<prosody rate="130%">')
-      convertedText = convertedText.replace(/\[\/速く\]/g, '</prosody>')
-      convertedText = convertedText.replace(/\[ゆっくり\]/g, '<prosody rate="80%">')
-      convertedText = convertedText.replace(/\[\/ゆっくり\]/g, '</prosody>')
-      
-      // Auto-close unclosed prosody tags at the end
-      const openProsodyCount = (convertedText.match(/<prosody/g) || []).length
+      // Validate SSML structure - ensure all tags are properly closed
+      const openProsodyCount = (convertedText.match(/<prosody[^>]*>/g) || []).length
       const closeProsodyCount = (convertedText.match(/<\/prosody>/g) || []).length
+      const openEmphasisCount = (convertedText.match(/<emphasis[^>]*>/g) || []).length
+      const closeEmphasisCount = (convertedText.match(/<\/emphasis>/g) || []).length
+      
+      // This shouldn't happen with the new logic, but just in case
       if (openProsodyCount > closeProsodyCount) {
         convertedText += '</prosody>'.repeat(openProsodyCount - closeProsodyCount)
+      }
+      if (openEmphasisCount > closeEmphasisCount) {
+        convertedText += '</emphasis>'.repeat(openEmphasisCount - closeEmphasisCount)
       }
       
       return c.json({
