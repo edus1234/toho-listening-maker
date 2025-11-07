@@ -1342,12 +1342,23 @@ function showAudioResult() {
             <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
             <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
             
-            <!-- Pause/Blank control -->
-            <div class="flex items-center gap-2 mt-2">
-              <label class="text-xs text-gray-600">後のブランク（秒）:</label>
-              <input type="number" min="0" max="10" step="0.5" value="${segment.pauseAfter || 0}"
-                     class="segment-pause-input w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-                     data-segment-index="${index}">
+            <!-- Speed and Pause controls -->
+            <div class="flex items-center gap-4 mt-2">
+              <!-- Speed control -->
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-gray-600">速度:</label>
+                <input type="range" min="0.75" max="1.5" step="0.05" value="${segment.overallSpeed || 1.0}"
+                       class="segment-speed-slider w-24"
+                       data-segment-index="${index}">
+                <span class="text-xs text-gray-700 font-mono segment-speed-value">${(segment.overallSpeed || 1.0).toFixed(2)}x</span>
+              </div>
+              <!-- Pause control -->
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-gray-600">後のブランク（秒）:</label>
+                <input type="number" min="0" max="10" step="0.5" value="${segment.pauseAfter || 0}"
+                       class="segment-pause-input w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                       data-segment-index="${index}">
+              </div>
             </div>
             
             ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono bg-purple-50 p-1 rounded">適用済み音声調整: ${segment.ssmlInstructions}</div>` : ''}
@@ -1393,20 +1404,15 @@ function showAudioResult() {
                     </div>
                   </div>
                   
-                  <!-- Speed and emphasis -->
+                  <!-- Emphasis only -->
                   <div class="mb-2">
-                    <div class="text-xs text-gray-600 mb-1">⚡ 速度・強調:</div>
+                    <div class="text-xs text-gray-600 mb-1">⚡ 強調:</div>
                     <div class="flex flex-wrap gap-1">
                       <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[強調]">
                         [強調]
                       </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[速く]">
-                        [速く]
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[ゆっくり]">
-                        [ゆっくり]
-                      </button>
                     </div>
+                    <div class="text-xs text-gray-500 mt-1">💡 速度はスライダーで調整してください</div>
                   </div>
                   
                   <!-- Emotion marks -->
@@ -1569,6 +1575,19 @@ function showAudioResult() {
     });
   });
   
+  // Speed slider for each segment
+  document.querySelectorAll('.segment-speed-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const speed = parseFloat(e.target.value);
+      currentState.audioSegments[index].overallSpeed = speed;
+      
+      // Update display value
+      const valueDisplay = e.target.closest('.flex').querySelector('.segment-speed-value');
+      valueDisplay.textContent = speed.toFixed(2) + 'x';
+    });
+  });
+  
   // Toggle voice instructions editor
   document.querySelectorAll('.toggle-audio-voice-instructions').forEach(button => {
     button.addEventListener('click', (e) => {
@@ -1698,7 +1717,7 @@ function showAudioResult() {
         const currentTextWithMarks = textarea ? textarea.value : segment.text;
         
         // Check if text contains marks that need conversion
-        const hasMarks = /\[(0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり)\]/.test(currentTextWithMarks);
+        const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり|笑う|怒る|ワクワク)\]/.test(currentTextWithMarks);
         
         let ssmlToUse = segment.ssmlInstructions || '';
         
@@ -1722,6 +1741,12 @@ function showAudioResult() {
           }
         }
         
+        // Apply overall speed to speaker if set
+        const speakerWithSpeed = { ...speaker };
+        if (segment.overallSpeed && segment.overallSpeed !== 1.0) {
+          speakerWithSpeed.speed = segment.overallSpeed;
+        }
+        
         // Prepare parsedLine for single segment regeneration
         const parsedLine = {
           speaker: segment.speaker,
@@ -1735,7 +1760,7 @@ function showAudioResult() {
         // Generate audio using the full API with single segment
         const response = await axios.post('/api/generate-audio', {
           script: segment.text,
-          speakers: [speaker],
+          speakers: [speakerWithSpeed],
           parsedLines: [parsedLine],
           questions: [],
           questionReader: null
