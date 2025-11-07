@@ -1360,30 +1360,72 @@ function showAudioResult() {
               <div class="audio-voice-instructions-container hidden mt-2" data-segment-index="${index}">
                 <div class="bg-blue-50 p-2 rounded mb-2 text-xs">
                   <div class="font-semibold text-blue-800 mb-1">クイック挿入:</div>
-                  <div class="flex flex-wrap gap-1">
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.5秒間]">
-                      [0.5秒間]
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[1秒間]">
-                      [1秒間]
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↑]">
-                      [↑] 上げ調子
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↓]">
-                      [↓] 下げ調子
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[強調]">
-                      [強調]
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[速く]">
-                      [速く]
-                    </button>
-                    <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[ゆっくり]">
-                      [ゆっくり]
-                    </button>
+                  
+                  <!-- Pause marks -->
+                  <div class="mb-2">
+                    <div class="text-xs text-gray-600 mb-1">⏸️ ポーズ:</div>
+                    <div class="flex flex-wrap gap-1">
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.2秒間]">
+                        [0.2秒間]
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.5秒間]">
+                        [0.5秒間]
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[1秒間]">
+                        [1秒間]
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[2秒間]">
+                        [2秒間]
+                      </button>
+                    </div>
                   </div>
-                  <div class="text-xs text-gray-600 mt-1">
+                  
+                  <!-- Pitch marks -->
+                  <div class="mb-2">
+                    <div class="text-xs text-gray-600 mb-1">🎵 イントネーション:</div>
+                    <div class="flex flex-wrap gap-1">
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↑]">
+                        [↑] 上げ調子
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↓]">
+                        [↓] 下げ調子
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Speed and emphasis -->
+                  <div class="mb-2">
+                    <div class="text-xs text-gray-600 mb-1">⚡ 速度・強調:</div>
+                    <div class="flex flex-wrap gap-1">
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[強調]">
+                        [強調]
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[速く]">
+                        [速く]
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[ゆっくり]">
+                        [ゆっくり]
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Emotion marks -->
+                  <div class="mb-2">
+                    <div class="text-xs text-gray-600 mb-1">😊 感情表現:</div>
+                    <div class="flex flex-wrap gap-1">
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-pink-100 hover:bg-pink-200 rounded text-xs" data-segment-index="${index}" data-mark="[笑う]">
+                        [笑う] 😄
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-red-100 hover:bg-red-200 rounded text-xs" data-segment-index="${index}" data-mark="[怒る]">
+                        [怒る] 😠
+                      </button>
+                      <button type="button" class="insert-mark-btn px-2 py-1 bg-purple-100 hover:bg-purple-200 rounded text-xs" data-segment-index="${index}" data-mark="[ワクワク]">
+                        [ワクワク] ✨
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="text-xs text-gray-600 mt-2">
                     💡 カーソル位置にマークを挿入します。単語の前後に配置してください。
                   </div>
                 </div>

@@ -379,35 +379,50 @@ app.post('/api/convert-to-ssml', async (c) => {
     }
     
     // Check if instructions contain marks (simple pattern-based conversion)
-    const hasMarks = /\[(0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり)\]/.test(instructions)
+    const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり|笑う|怒る|ワクワク)\]/.test(instructions)
     
     if (hasMarks) {
       // Direct mark-to-SSML conversion without AI
       let convertedText = instructions
       
-      // STEP 1: Convert emphasis marks first (with closing tags)
+      // STEP 1: Convert emotion marks first (these affect larger sections)
+      // Emotions use prosody with combined pitch, rate, and volume adjustments
+      convertedText = convertedText.replace(/\[笑う\]\s*([^[\]]+?)\s*\[\/笑う\]/g, '<prosody pitch="+20%" rate="110%" volume="+3dB">$1</prosody>')
+      convertedText = convertedText.replace(/\[怒る\]\s*([^[\]]+?)\s*\[\/怒る\]/g, '<prosody pitch="-10%" rate="120%" volume="+6dB"><emphasis level="strong">$1</emphasis></prosody>')
+      convertedText = convertedText.replace(/\[ワクワク\]\s*([^[\]]+?)\s*\[\/ワクワク\]/g, '<prosody pitch="+25%" rate="115%" volume="+2dB">$1</prosody>')
+      // Auto-close if no closing tag found
+      convertedText = convertedText.replace(/\[笑う\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+20%" rate="110%" volume="+3dB">$1</prosody>')
+      convertedText = convertedText.replace(/\[怒る\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-10%" rate="120%" volume="+6dB"><emphasis level="strong">$1</emphasis></prosody>')
+      convertedText = convertedText.replace(/\[ワクワク\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+25%" rate="115%" volume="+2dB">$1</prosody>')
+      
+      // STEP 2: Convert emphasis marks (with closing tags)
       convertedText = convertedText.replace(/\[強調\]\s*([^[\]]+?)\s*\[\/強調\]/g, '<emphasis level="strong">$1</emphasis>')
       // Auto-close if no closing tag found - match until next mark or punctuation
       convertedText = convertedText.replace(/\[強調\]\s*([^[\]。、！？\.,!?\n]+)/g, '<emphasis level="strong">$1</emphasis>')
       
-      // STEP 2: Convert speed marks (with closing tags)
-      convertedText = convertedText.replace(/\[速く\]\s*([^[\]]+?)\s*\[\/速く\]/g, '<prosody rate="130%">$1</prosody>')
-      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]]+?)\s*\[\/ゆっくり\]/g, '<prosody rate="80%">$1</prosody>')
+      // STEP 3: Convert speed marks (with closing tags)
+      convertedText = convertedText.replace(/\[速く\]\s*([^[\]]+?)\s*\[\/速く\]/g, '<prosody rate="140%">$1</prosody>')
+      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]]+?)\s*\[\/ゆっくり\]/g, '<prosody rate="75%">$1</prosody>')
       // Auto-close if no closing tag found
-      convertedText = convertedText.replace(/\[速く\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="130%">$1</prosody>')
-      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="80%">$1</prosody>')
+      convertedText = convertedText.replace(/\[速く\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="140%">$1</prosody>')
+      convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="75%">$1</prosody>')
       
-      // STEP 3: Convert pitch marks - wrap next word/phrase until next mark or punctuation
-      convertedText = convertedText.replace(/\[↑\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+15%">$1</prosody>')
-      convertedText = convertedText.replace(/\[↓\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-15%">$1</prosody>')
+      // STEP 4: Convert pitch marks - wrap next word/phrase until next mark or punctuation
+      // Increased from +/-15% to +/-30% for more noticeable effect
+      convertedText = convertedText.replace(/\[↑\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+30%">$1</prosody>')
+      convertedText = convertedText.replace(/\[↓\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-30%">$1</prosody>')
       
-      // STEP 4: Convert pause marks last (they don't interfere with other tags)
+      // STEP 5: Convert pause marks last (they don't interfere with other tags)
+      convertedText = convertedText.replace(/\[0\.2秒間\]/g, '<break time="0.2s"/>')
       convertedText = convertedText.replace(/\[0\.5秒間\]/g, '<break time="0.5s"/>')
       convertedText = convertedText.replace(/\[1秒間\]/g, '<break time="1s"/>')
       convertedText = convertedText.replace(/\[2秒間\]/g, '<break time="2s"/>')
       
-      // STEP 5: Fix consecutive breaks (Google TTS doesn't support this)
+      // STEP 6: Fix consecutive breaks (Google TTS doesn't support this)
       // Replace multiple consecutive breaks with a single break of summed duration
+      convertedText = convertedText.replace(/<break time="0\.2s"\/>\s*<break time="0\.2s"\/>/g, '<break time="0.4s"/>')
+      convertedText = convertedText.replace(/<break time="0\.2s"\/>\s*<break time="0\.5s"\/>/g, '<break time="0.7s"/>')
+      convertedText = convertedText.replace(/<break time="0\.5s"\/>\s*<break time="0\.2s"\/>/g, '<break time="0.7s"/>')
       convertedText = convertedText.replace(/<break time="0\.5s"\/>\s*<break time="0\.5s"\/>/g, '<break time="1s"/>')
       convertedText = convertedText.replace(/<break time="1s"\/>\s*<break time="1s"\/>/g, '<break time="2s"/>')
       convertedText = convertedText.replace(/<break time="1s"\/>\s*<break time="2s"\/>/g, '<break time="3s"/>')
@@ -420,6 +435,9 @@ app.post('/api/convert-to-ssml', async (c) => {
       convertedText = convertedText.replace(/\[\/強調\]/g, '')
       convertedText = convertedText.replace(/\[\/速く\]/g, '')
       convertedText = convertedText.replace(/\[\/ゆっくり\]/g, '')
+      convertedText = convertedText.replace(/\[\/笑う\]/g, '')
+      convertedText = convertedText.replace(/\[\/怒る\]/g, '')
+      convertedText = convertedText.replace(/\[\/ワクワク\]/g, '')
       
       // Remove any remaining unconverted marks to prevent SSML errors
       convertedText = convertedText.replace(/\[↑\]/g, '')
@@ -427,6 +445,10 @@ app.post('/api/convert-to-ssml', async (c) => {
       convertedText = convertedText.replace(/\[強調\]/g, '')
       convertedText = convertedText.replace(/\[速く\]/g, '')
       convertedText = convertedText.replace(/\[ゆっくり\]/g, '')
+      convertedText = convertedText.replace(/\[笑う\]/g, '')
+      convertedText = convertedText.replace(/\[怒る\]/g, '')
+      convertedText = convertedText.replace(/\[ワクワク\]/g, '')
+      convertedText = convertedText.replace(/\[0\.2秒間\]/g, '')
       convertedText = convertedText.replace(/\[0\.5秒間\]/g, '')
       convertedText = convertedText.replace(/\[1秒間\]/g, '')
       convertedText = convertedText.replace(/\[2秒間\]/g, '')
