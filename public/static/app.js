@@ -18,7 +18,8 @@ let currentState = {
   generatedScript: '',
   generatedQuestions: [],
   speakers: [], // Array of speaker objects with name, accent, speed
-  audioSegments: null // Array of {speaker, audio} objects
+  audioSegments: null, // Array of {speaker, audio} objects
+  useGeminiTTS: false // Flag to use Gemini TTS instead of Google TTS
 };
 
 // Initialize app
@@ -1084,6 +1085,22 @@ function renderReviewScreen() {
         </div>
       </div>
 
+      <!-- TTS Engine Selection -->
+      <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="flex items-center cursor-pointer">
+              <input type="checkbox" id="useGeminiTTSCheckbox" ${currentState.useGeminiTTS ? 'checked' : ''}
+                     class="w-5 h-5 text-indigo-600 focus:ring-indigo-500 rounded">
+              <span class="ml-3">
+                <span class="font-semibold text-gray-800">🎭 Gemini TTS（感情表現）を使用する</span>
+                <span class="block text-xs text-gray-600 mt-1">より自然な感情表現が可能（実験的機能）</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div class="flex gap-4">
         <button id="backToInputButton"
                 class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
@@ -1111,6 +1128,15 @@ function attachReviewScreenListeners() {
   const generateAudioButton = document.getElementById('generateAudioButton');
   const scriptEditor = document.getElementById('scriptEditor');
   const addNarrationButton = document.getElementById('addNarrationButton');
+  const useGeminiTTSCheckbox = document.getElementById('useGeminiTTSCheckbox');
+  
+  // Gemini TTS checkbox
+  if (useGeminiTTSCheckbox) {
+    useGeminiTTSCheckbox.addEventListener('change', (e) => {
+      currentState.useGeminiTTS = e.target.checked;
+      console.log('Gemini TTS:', currentState.useGeminiTTS ? 'Enabled' : 'Disabled');
+    });
+  }
   
   // Update script when edited
   scriptEditor.addEventListener('input', (e) => {
@@ -1247,7 +1273,8 @@ async function generateAudioFromParsedLines() {
         speed: 1.0,
         questionPause: 2.0,
         optionPause: 0.5
-      }
+      },
+      useGeminiTTS: currentState.useGeminiTTS || false
     };
     
     // Call API to generate audio
@@ -1763,7 +1790,8 @@ function showAudioResult() {
           speakers: [speakerWithSpeed],
           parsedLines: [parsedLine],
           questions: [],
-          questionReader: null
+          questionReader: null,
+          useGeminiTTS: currentState.useGeminiTTS || false
         });
         
         if (response.data.success && response.data.audioSegments && response.data.audioSegments.length > 0) {

@@ -585,6 +585,73 @@ app.post('/api/convert-to-ssml', async (c) => {
   }
 })
 
+// Gemini TTS voice mapping (30 prebuilt voices)
+// Voice characteristics based on Google's recommendations
+const getGeminiTTSVoice = (accent: string, gender: string = 'male') => {
+  const voiceMap: Record<string, Record<string, string>> = {
+    'US': {
+      'male': 'Puck',      // Upbeat, energetic (US accent)
+      'female': 'Kore'     // Clear, professional (US accent)
+    },
+    'UK': {
+      'male': 'Charon',    // Firm, authoritative (UK accent)
+      'female': 'Leda'     // Warm, friendly (UK accent)
+    },
+    'Australian': {
+      'male': 'Fenrir',    // Casual, approachable
+      'female': 'Aoede'    // Bright, cheerful
+    },
+    'Canadian': {
+      'male': 'Puck',      // Same as US
+      'female': 'Kore'
+    },
+    'Indian': {
+      'male': 'Orus',      // Clear, articulate
+      'female': 'Callirhoe' // Soft, pleasant
+    },
+    'Irish': {
+      'male': 'Autonoe',   // Distinctive, expressive
+      'female': 'Enceladus'
+    },
+    'Scottish': {
+      'male': 'Iapetus',   // Strong, distinctive
+      'female': 'Umbriel'
+    }
+  }
+  return voiceMap[accent]?.[gender] || 'Puck'
+}
+
+// Convert emotion marks to Gemini TTS prompt instructions
+const convertEmotionToPrompt = (text: string, voiceInstructions?: string): string => {
+  if (!voiceInstructions) return text
+  
+  // Check for emotion marks
+  const hasLaugh = /\[笑う\]/.test(voiceInstructions)
+  const hasAngry = /\[怒る\]/.test(voiceInstructions)
+  const hasExcited = /\[ワクワク\]/.test(voiceInstructions)
+  const hasPitchUp = /\[↑\]/.test(voiceInstructions)
+  const hasPitchDown = /\[↓\]/.test(voiceInstructions)
+  const hasEmphasis = /\[強調\]/.test(voiceInstructions)
+  
+  let prompt = ''
+  
+  if (hasLaugh) {
+    prompt = 'Say cheerfully with a happy tone: '
+  } else if (hasAngry) {
+    prompt = 'Say in an angry, forceful tone: '
+  } else if (hasExcited) {
+    prompt = 'Say with excitement and enthusiasm: '
+  } else if (hasPitchUp) {
+    prompt = 'Say with rising intonation and upbeat tone: '
+  } else if (hasPitchDown) {
+    prompt = 'Say with falling intonation and serious tone: '
+  } else if (hasEmphasis) {
+    prompt = 'Say with strong emphasis: '
+  }
+  
+  return prompt + text
+}
+
 // Google TTS voice mapping with gender support
 // Returns { standard: ..., ssml: ... } where ssml is SSML-compatible voice
 const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
@@ -714,18 +781,72 @@ const parseScript = (script: string) => {
   return lines
 }
 
+// Gemini TTS generation helper
+const generateGeminiTTS = async (text: string, voiceName: string, emotionPrompt: string, GEMINI_API_KEY: string) => {
+  const fullPrompt = emotionPrompt ? `${emotionPrompt} ${text}` : text
+  
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          { text: fullPrompt }
+        ]
+      }
+    ],
+    generationConfig: {
+      response_modalities: ['AUDIO'],
+      speech_config: {
+        voice_config: {
+          prebuilt_voice_config: {
+            voice_name: voiceName
+          }
+        }
+      }
+    }
+  }
+  
+  console.log('🎙️ Gemini TTS Request:', JSON.stringify(requestBody, null, 2))
+  
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    }
+  )
+  
+  if (!response.ok) {
+    const errorData = await response.json()
+    console.error('Gemini TTS error:', errorData)
+    throw new Error(`Gemini TTS API エラー: ${errorData.error?.message || 'Unknown error'}`)
+  }
+  
+  const data = await response.json()
+  
+  // Extract base64 audio from response
+  const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data
+  
+  if (!audioData) {
+    throw new Error('Gemini TTS: 音声データが見つかりません')
+  }
+  
+  return audioData
+}
+
 // Audio generation endpoint
 app.post('/api/generate-audio', async (c) => {
   try {
     const body = await c.req.json()
-    const { script, speakers, parsedLines, questions, questionReader } = body
+    const { script, speakers, parsedLines, questions, questionReader, useGeminiTTS } = body
     
     if (!script || !speakers || speakers.length === 0) {
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
     }
     
-    // Google TTS API key from environment variable
+    // API keys from environment variables
     const GOOGLE_TTS_API_KEY = c.env?.GOOGLE_TTS_API_KEY || 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
+    const GEMINI_API_KEY = c.env?.GEMINI_API_KEY || c.env?.GOOGLE_TTS_API_KEY
     
     // Use parsedLines if provided, otherwise parse script
     let lines = parsedLines && parsedLines.length > 0 ? parsedLines : parseScript(script)
@@ -832,6 +953,7 @@ app.post('/api/generate-audio', async (c) => {
       let voiceConfig: any
       let speakingRate = 1.0
       let pauseAfter = line.pauseAfter !== undefined ? line.pauseAfter : 0
+      let audioContent: string
       
       // Handle narration
       if (line.type === 'narration' || line.isNarration) {
@@ -857,15 +979,35 @@ app.post('/api/generate-audio', async (c) => {
         }
       }
       
-      // Generate audio with SSML instructions if provided
-      const audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
+      // Choose TTS engine: Gemini or Google
+      if (useGeminiTTS && GEMINI_API_KEY) {
+        // Use Gemini TTS with emotion prompts
+        const geminiVoice = getGeminiTTSVoice(
+          speakerVoiceMap[line.speaker]?.gender || 'US',
+          speakerVoiceMap[line.speaker]?.gender || 'male'
+        )
+        const emotionPrompt = convertEmotionToPrompt(line.text, line.voiceInstructions)
+        
+        try {
+          audioContent = await generateGeminiTTS(line.text, geminiVoice, emotionPrompt, GEMINI_API_KEY)
+        } catch (geminiError: any) {
+          console.error('Gemini TTS failed, falling back to Google TTS:', geminiError.message)
+          // Fallback to Google TTS
+          audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
+        }
+      } else {
+        // Use Google TTS with SSML instructions if provided
+        audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
+      }
+      
       audioSegments.push({
         speaker: line.speaker,
         audio: audioContent,
         pauseAfter: pauseAfter,
         type: line.type || 'dialogue',
         text: line.text,
-        ssmlInstructions: line.ssmlInstructions
+        ssmlInstructions: line.ssmlInstructions,
+        ttsEngine: useGeminiTTS && GEMINI_API_KEY ? 'gemini' : 'google'
       })
     }
     
