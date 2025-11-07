@@ -406,6 +406,16 @@ app.post('/api/convert-to-ssml', async (c) => {
       convertedText = convertedText.replace(/\[1秒間\]/g, '<break time="1s"/>')
       convertedText = convertedText.replace(/\[2秒間\]/g, '<break time="2s"/>')
       
+      // STEP 5: Fix consecutive breaks (Google TTS doesn't support this)
+      // Replace multiple consecutive breaks with a single break of summed duration
+      convertedText = convertedText.replace(/<break time="0\.5s"\/>\s*<break time="0\.5s"\/>/g, '<break time="1s"/>')
+      convertedText = convertedText.replace(/<break time="1s"\/>\s*<break time="1s"\/>/g, '<break time="2s"/>')
+      convertedText = convertedText.replace(/<break time="1s"\/>\s*<break time="2s"\/>/g, '<break time="3s"/>')
+      convertedText = convertedText.replace(/<break time="2s"\/>\s*<break time="1s"\/>/g, '<break time="3s"/>')
+      convertedText = convertedText.replace(/<break time="2s"\/>\s*<break time="2s"\/>/g, '<break time="4s"/>')
+      // Remove triple or more consecutive breaks - replace with longest single break
+      convertedText = convertedText.replace(/(<break time="[^"]+"\/>[\s]*){3,}/g, '<break time="3s"/>')
+      
       // Remove any remaining closing marks that weren't matched
       convertedText = convertedText.replace(/\[\/強調\]/g, '')
       convertedText = convertedText.replace(/\[\/速く\]/g, '')
@@ -420,6 +430,12 @@ app.post('/api/convert-to-ssml', async (c) => {
       convertedText = convertedText.replace(/\[0\.5秒間\]/g, '')
       convertedText = convertedText.replace(/\[1秒間\]/g, '')
       convertedText = convertedText.replace(/\[2秒間\]/g, '')
+      
+      // ★★★ CRITICAL FIX: Remove ALL remaining brackets (single or empty) ★★★
+      // This fixes cases like [1秒間]] → ]  or [ ] remaining after conversion
+      convertedText = convertedText.replace(/\[\s*\]/g, '')  // Remove empty brackets [ ]
+      convertedText = convertedText.replace(/\]/g, '')       // Remove stray closing brackets ]
+      convertedText = convertedText.replace(/\[/g, '')       // Remove stray opening brackets [
       
       // Validate SSML structure - ensure all tags are properly closed
       const openProsodyCount = (convertedText.match(/<prosody[^>]*>/g) || []).length
@@ -548,35 +564,92 @@ app.post('/api/convert-to-ssml', async (c) => {
 })
 
 // Google TTS voice mapping with gender support
+// Returns { standard: ..., ssml: ... } where ssml is SSML-compatible voice
 const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
-  const voiceMap: Record<string, Record<string, { languageCode: string, name: string }>> = {
+  const voiceMap: Record<string, Record<string, { languageCode: string, standard: string, ssml: string }>> = {
     'US': {
-      'male': { languageCode: 'en-US', name: 'en-US-Journey-D' },
-      'female': { languageCode: 'en-US', name: 'en-US-Journey-F' }
+      'male': { 
+        languageCode: 'en-US', 
+        standard: 'en-US-Journey-D',  // Journey for plain text (best quality)
+        ssml: 'en-US-Wavenet-D'        // WaveNet for SSML (SSML-compatible)
+      },
+      'female': { 
+        languageCode: 'en-US', 
+        standard: 'en-US-Journey-F', 
+        ssml: 'en-US-Wavenet-F' 
+      }
     },
     'UK': {
-      'male': { languageCode: 'en-GB', name: 'en-GB-Journey-D' },
-      'female': { languageCode: 'en-GB', name: 'en-GB-Journey-F' }
+      'male': { 
+        languageCode: 'en-GB', 
+        standard: 'en-GB-Journey-D', 
+        ssml: 'en-GB-Wavenet-D' 
+      },
+      'female': { 
+        languageCode: 'en-GB', 
+        standard: 'en-GB-Journey-F', 
+        ssml: 'en-GB-Wavenet-F' 
+      }
     },
     'Australian': {
-      'male': { languageCode: 'en-AU', name: 'en-AU-Journey-D' },
-      'female': { languageCode: 'en-AU', name: 'en-AU-Journey-F' }
+      'male': { 
+        languageCode: 'en-AU', 
+        standard: 'en-AU-Journey-D', 
+        ssml: 'en-AU-Wavenet-B' 
+      },
+      'female': { 
+        languageCode: 'en-AU', 
+        standard: 'en-AU-Journey-F', 
+        ssml: 'en-AU-Wavenet-A' 
+      }
     },
     'Canadian': {
-      'male': { languageCode: 'en-US', name: 'en-US-Journey-D' },
-      'female': { languageCode: 'en-US', name: 'en-US-Journey-F' }
+      'male': { 
+        languageCode: 'en-US', 
+        standard: 'en-US-Journey-D', 
+        ssml: 'en-US-Wavenet-D' 
+      },
+      'female': { 
+        languageCode: 'en-US', 
+        standard: 'en-US-Journey-F', 
+        ssml: 'en-US-Wavenet-F' 
+      }
     },
     'Indian': {
-      'male': { languageCode: 'en-IN', name: 'en-IN-Journey-D' },
-      'female': { languageCode: 'en-IN', name: 'en-IN-Journey-F' }
+      'male': { 
+        languageCode: 'en-IN', 
+        standard: 'en-IN-Journey-D', 
+        ssml: 'en-IN-Wavenet-B' 
+      },
+      'female': { 
+        languageCode: 'en-IN', 
+        standard: 'en-IN-Journey-F', 
+        ssml: 'en-IN-Wavenet-A' 
+      }
     },
     'Irish': {
-      'male': { languageCode: 'en-IE', name: 'en-IE-Standard-A' },
-      'female': { languageCode: 'en-IE', name: 'en-IE-Standard-A' }
+      'male': { 
+        languageCode: 'en-IE', 
+        standard: 'en-IE-Standard-A', 
+        ssml: 'en-IE-Standard-A' 
+      },
+      'female': { 
+        languageCode: 'en-IE', 
+        standard: 'en-IE-Standard-A', 
+        ssml: 'en-IE-Standard-A' 
+      }
     },
     'Scottish': {
-      'male': { languageCode: 'en-GB', name: 'en-GB-Standard-B' },
-      'female': { languageCode: 'en-GB', name: 'en-GB-Standard-A' }
+      'male': { 
+        languageCode: 'en-GB', 
+        standard: 'en-GB-Standard-B', 
+        ssml: 'en-GB-Standard-B' 
+      },
+      'female': { 
+        languageCode: 'en-GB', 
+        standard: 'en-GB-Standard-A', 
+        ssml: 'en-GB-Standard-A' 
+      }
     }
   }
   return voiceMap[accent]?.[gender] || voiceMap['US']['male']
@@ -664,26 +737,26 @@ app.post('/api/generate-audio', async (c) => {
         return ssmlInstructions
       }
       
-      // If instructions contain the original text, user is providing full SSML
-      // Wrap it with <speak> tags
-      if (ssmlInstructions.includes(text)) {
-        return `<speak>${ssmlInstructions}</speak>`
-      } else {
-        // If instructions don't contain text, user is only providing SSML tags
-        // Return the instructions wrapped in <speak> tags
-        // User should write the full text with embedded SSML tags
-        return `<speak>${ssmlInstructions}</speak>`
-      }
+      // SSML instructions should already be the full converted text with SSML tags
+      // Escape XML special characters that are not part of tags
+      let escapedSSML = ssmlInstructions
+        .replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;') // Escape & not already part of entity
+        // Don't escape < and > as they are part of SSML tags
+      
+      // Wrap with <speak> tags
+      return `<speak>${escapedSSML}</speak>`
     }
     
     // Helper function to generate TTS audio with SSML support
     const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string) => {
       let inputContent: any
+      const useSSML = ssmlInstructions && ssmlInstructions.trim() !== ''
       
       // Check if we should use SSML
-      if (ssmlInstructions && ssmlInstructions.trim() !== '') {
+      if (useSSML) {
         // Use SSML input
         const ssmlText = applySSMLInstructions(text, ssmlInstructions)
+        console.log('🔍 Using SSML:', ssmlText)
         inputContent = { ssml: ssmlText }
       } else {
         // Use plain text input
@@ -694,14 +767,18 @@ app.post('/api/generate-audio', async (c) => {
         input: inputContent,
         voice: {
           languageCode: voiceConfig.languageCode,
-          name: voiceConfig.name
+          // Use SSML-compatible voice when using SSML, otherwise use standard voice
+          name: useSSML ? voiceConfig.ssml : voiceConfig.standard
         },
         audioConfig: {
           audioEncoding: 'MP3',
-          speakingRate: speakingRate,
+          // When using SSML, speakingRate should be 1.0 (use prosody rate in SSML instead)
+          speakingRate: useSSML ? 1.0 : speakingRate,
           pitch: 0
         }
       }
+      
+      console.log('📤 TTS Request:', JSON.stringify(ttsRequest, null, 2))
       
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
