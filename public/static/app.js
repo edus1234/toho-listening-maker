@@ -1811,7 +1811,38 @@ let audioElements = [];
 
 function playNextSegment() {
   if (currentAudioIndex < audioElements.length) {
-    audioElements[currentAudioIndex].play();
+    const currentAudio = audioElements[currentAudioIndex];
+    const segment = currentState.audioSegments[currentAudioIndex];
+    const pauseAfter = segment.pauseAfter || 0;
+    
+    // Play current segment
+    currentAudio.play();
+    
+    // Remove old event listener to avoid duplicates
+    const oldEndedHandler = currentAudio._endedHandler;
+    if (oldEndedHandler) {
+      currentAudio.removeEventListener('ended', oldEndedHandler);
+    }
+    
+    // Add new event listener with pause handling
+    const endedHandler = () => {
+      // Wait for pauseAfter duration before playing next segment
+      if (pauseAfter > 0) {
+        console.log(`⏸️ Waiting ${pauseAfter} seconds before next segment...`);
+        setTimeout(() => {
+          currentAudioIndex++;
+          playNextSegment();
+        }, pauseAfter * 1000);
+      } else {
+        // No pause, play next immediately
+        currentAudioIndex++;
+        playNextSegment();
+      }
+    };
+    
+    // Store handler reference for cleanup
+    currentAudio._endedHandler = endedHandler;
+    currentAudio.addEventListener('ended', endedHandler, { once: true });
   }
 }
 
@@ -2015,16 +2046,6 @@ function showAudioResult() {
   audioElements = Array.from(document.querySelectorAll('.audio-segment'));
   let isPlayingAll = false; // Flag to track if playing all segments
   
-  audioElements.forEach((audio, index) => {
-    audio.addEventListener('ended', () => {
-      // Only auto-play next segment if "Play All" mode is active
-      if (isPlayingAll) {
-        currentAudioIndex++;
-        playNextSegment();
-      }
-    });
-  });
-  
   // Play all button
   document.getElementById('playAllButton').addEventListener('click', () => {
     isPlayingAll = true; // Enable continuous playback
@@ -2043,6 +2064,11 @@ function showAudioResult() {
     audioElements.forEach(audio => {
       audio.pause();
       audio.currentTime = 0;
+      // Remove event listeners to stop auto-play
+      if (audio._endedHandler) {
+        audio.removeEventListener('ended', audio._endedHandler);
+        audio._endedHandler = null;
+      }
     });
     currentAudioIndex = 0;
   });
