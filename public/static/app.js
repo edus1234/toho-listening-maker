@@ -251,15 +251,6 @@ function renderLoginScreen() {
             <i class="fas fa-sign-in-alt mr-2"></i>Sign In
           </button>
         </form>
-        
-        <!-- Demo credentials info -->
-        <div class="mt-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
-          <p class="text-xs text-gray-700 text-center font-medium">
-            <i class="fas fa-info-circle mr-1 text-purple-600"></i>
-            Demo Account<br>
-            <span class="font-mono text-purple-800">admin / listening2024</span>
-          </p>
-        </div>
       </div>
     </div>
   `;
