@@ -199,13 +199,8 @@ function renderLoginScreen() {
       
       <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 w-full max-w-md fade-in border border-purple-100">
         <div class="text-center mb-8">
-          <!-- Toho Logo with elegant styling -->
-          <div class="mb-6 relative">
-            <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full blur-2xl opacity-20 scale-110"></div>
-            <img src="/toho-logo.svg" alt="Toho Logo" class="relative mx-auto h-28 object-contain drop-shadow-2xl">
-          </div>
-          
-          <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-3 tracking-tight">
+          <!-- Larger, more prominent Toho title -->
+          <h1 class="text-6xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-4 tracking-tight">
             Toho Listening Maker
           </h1>
           <div class="h-1 w-24 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-4"></div>
@@ -2853,13 +2848,8 @@ function renderMenuScreen() {
       
       <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-12 w-full max-w-4xl fade-in border border-purple-100">
         <div class="text-center mb-12">
-          <!-- Toho Logo with elegant styling -->
-          <div class="mb-8 relative">
-            <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full blur-3xl opacity-20 scale-110"></div>
-            <img src="/toho-logo.svg" alt="Toho Logo" class="relative mx-auto h-24 object-contain drop-shadow-2xl">
-          </div>
-          
-          <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-4 tracking-tight">
+          <!-- Larger, more prominent Toho title -->
+          <h1 class="text-7xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-5 tracking-tight">
             Toho Listening Maker
           </h1>
           <div class="h-1.5 w-32 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-6"></div>

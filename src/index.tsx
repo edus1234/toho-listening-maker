@@ -46,10 +46,6 @@ app.use('/api/*', cors())
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
-// Serve logo files
-app.get('/toho-logo.svg', serveStatic({ path: './public/toho-logo.svg' }))
-app.get('/toho-logo.png', serveStatic({ path: './public/toho-logo.png' }))
-
 // API routes
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', message: 'Toho Listening Test Maker' })
@@ -1383,15 +1379,11 @@ app.get('/', (c) => {
             <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-gradient-to-r from-purple-600 to-blue-600">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
-                        <div class="relative">
-                            <div class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 rounded-full blur-lg opacity-30"></div>
-                            <img src="/toho-logo.svg" alt="Toho Logo" class="relative h-16 mr-4 drop-shadow-lg">
-                        </div>
                         <div>
-                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 bg-clip-text text-transparent mb-1">
+                            <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 bg-clip-text text-transparent mb-1">
                                 Toho Listening Maker
                             </h1>
-                            <p class="text-sm text-gray-600 font-medium">桐朋中学校・桐朋高等学校</p>
+                            <p class="text-base text-gray-600 font-medium">桐朋中学校・桐朋高等学校</p>
                         </div>
                     </div>
                     <div class="flex gap-2">
