@@ -1861,6 +1861,15 @@ function showAudioResult() {
     return `
       <div class="mb-3 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded" data-segment-index="${index}">
         <div class="flex items-start gap-2">
+          <!-- Move up/down buttons -->
+          <div class="flex flex-col gap-1">
+            <button class="move-segment-up-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === 0 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上に移動">
+              <i class="fas fa-chevron-up"></i>
+            </button>
+            <button class="move-segment-down-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === currentState.audioSegments.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === currentState.audioSegments.length - 1 ? 'disabled' : ''} title="下に移動">
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
           <button class="play-segment-btn px-2 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm flex-shrink-0" data-index="${index}">
             <i class="fas fa-play"></i>
           </button>
@@ -1989,10 +1998,16 @@ function showAudioResult() {
       </h2>
       
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-6 mb-6">
-        <p class="text-green-800 mb-4 flex items-center">
-          <i class="fas fa-info-circle mr-2"></i>
-          音声ファイルが正常に生成されました（${currentState.audioSegments.length}セグメント）
-        </p>
+        <div class="mb-4">
+          <p class="text-green-800 mb-2 flex items-center font-semibold">
+            <i class="fas fa-check-circle mr-2"></i>
+            音声ファイルが正常に生成されました（${currentState.audioSegments.length}セグメント）
+          </p>
+          <p class="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded p-3 mt-2">
+            <i class="fas fa-info-circle mr-1 text-blue-600"></i>
+            <strong>編集方法：</strong>各セグメントの順序を変更するには、上下の矢印ボタンを使用してください。編集を終えた後には各セグメントの「音声再生成」ボタンを押してください。
+          </p>
+        </div>
         
         <div class="mb-4">
           <button id="playAllButton" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">
@@ -2019,10 +2034,6 @@ function showAudioResult() {
       </div>
       
       <div class="flex gap-4 mb-4">
-        <button id="backToReviewFromAudioButton"
-                class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
-          <i class="fas fa-arrow-left mr-2"></i>１つ前に戻る
-        </button>
         <button id="downloadMp3Button"
                 class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
           <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
@@ -2485,10 +2496,40 @@ function showAudioResult() {
     await showSaveToFolderDialog();
   });
   
-  // Back to review screen button
-  document.getElementById('backToReviewFromAudioButton').addEventListener('click', () => {
-    currentState.screen = 'review';
-    renderScreen();
+  // Move segment up button
+  document.querySelectorAll('.move-segment-up-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.index);
+      if (index > 0) {
+        // Swap segments
+        const temp = currentState.audioSegments[index];
+        currentState.audioSegments[index] = currentState.audioSegments[index - 1];
+        currentState.audioSegments[index - 1] = temp;
+        
+        // Re-render audio result screen
+        showAudioResult();
+        
+        console.log(`✅ Segment ${index} moved up`);
+      }
+    });
+  });
+  
+  // Move segment down button
+  document.querySelectorAll('.move-segment-down-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.currentTarget.dataset.index);
+      if (index < currentState.audioSegments.length - 1) {
+        // Swap segments
+        const temp = currentState.audioSegments[index];
+        currentState.audioSegments[index] = currentState.audioSegments[index + 1];
+        currentState.audioSegments[index + 1] = temp;
+        
+        // Re-render audio result screen
+        showAudioResult();
+        
+        console.log(`✅ Segment ${index} moved down`);
+      }
+    });
   });
   
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
