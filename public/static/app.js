@@ -292,7 +292,7 @@ function attachLoginScreenListeners() {
         currentState.isAuthenticated = true;
         currentState.authToken = response.data.token;
         currentState.isAdmin = response.data.is_admin;
-        currentState.screen = 'input';
+        currentState.screen = 'menu'; // Show menu after login
         
         // Show logout button
         showLogoutButton();
@@ -1534,10 +1534,16 @@ function renderSpeakerSettingsScreen() {
         音声設定
       </h2>
       
-      <p class="text-sm text-gray-600 mb-6">
-        <i class="fas fa-info-circle mr-2"></i>
-        各話者とナレーターの音声特性を設定してください
-      </p>
+      <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+        <p class="text-sm text-blue-800 mb-2">
+          <i class="fas fa-info-circle mr-2"></i>
+          各話者とナレーターの音声特性を設定してください
+        </p>
+        <p class="text-sm text-red-600 font-semibold">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          ※セリフを編集後には、前の画面に戻って「音声再調整」ボタンを押してください！
+        </p>
+      </div>
       
       ${speakersHTML}
       ${narratorHTML}
