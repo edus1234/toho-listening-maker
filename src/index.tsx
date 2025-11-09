@@ -46,7 +46,8 @@ app.use('/api/*', cors())
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
-// Serve logo file
+// Serve logo files
+app.get('/toho-logo.svg', serveStatic({ path: './public/toho-logo.svg' }))
 app.get('/toho-logo.png', serveStatic({ path: './public/toho-logo.png' }))
 
 // API routes
@@ -1384,7 +1385,7 @@ app.get('/', (c) => {
                     <div class="flex items-center">
                         <div class="relative">
                             <div class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 rounded-full blur-lg opacity-30"></div>
-                            <img src="/toho-logo.png" alt="Toho Logo" class="relative h-16 mr-4 drop-shadow-lg">
+                            <img src="/toho-logo.svg" alt="Toho Logo" class="relative h-16 mr-4 drop-shadow-lg">
                         </div>
                         <div>
                             <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 bg-clip-text text-transparent mb-1">
