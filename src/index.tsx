@@ -46,9 +46,12 @@ app.use('/api/*', cors())
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// Serve logo file
+app.get('/toho-logo.png', serveStatic({ path: './public/toho-logo.png' }))
+
 // API routes
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', message: 'リスニングテスト自動作成システム' })
+  return c.json({ status: 'ok', message: 'Toho Listening Test Maker' })
 })
 
 // Login endpoint
@@ -1365,7 +1368,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>リスニングテスト自動作成システム</title>
+        <title>Toho Listening Test Maker - 桐朋中学校・桐朋高等学校</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -1376,20 +1379,22 @@ app.get('/', (c) => {
     <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
         <div class="container mx-auto px-4 py-8 max-w-4xl">
             <!-- Header -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6 border-t-4 border-blue-800">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-3xl font-bold text-indigo-700 mb-2 flex items-center">
-                            <i class="fas fa-headphones mr-3"></i>
-                            リスニングテスト自動作成システム
-                        </h1>
-                        <p class="text-gray-600">英語のリスニング原稿・音声・問題を自動で作成</p>
+                    <div class="flex items-center">
+                        <img src="/toho-logo.png" alt="Toho Logo" class="h-16 mr-4">
+                        <div>
+                            <h1 class="text-2xl font-bold text-blue-900 mb-1">
+                                Toho Listening Test Maker
+                            </h1>
+                            <p class="text-sm text-gray-600">桐朋中学校・桐朋高等学校 リスニング教材作成システム</p>
+                        </div>
                     </div>
                     <div class="flex gap-2">
-                        <button id="userManagementButton" class="hidden bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+                        <button id="userManagementButton" class="hidden bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition shadow-md">
                             <i class="fas fa-users mr-2"></i>ユーザー管理
                         </button>
-                        <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+                        <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition shadow-md">
                             <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
                         </button>
                     </div>

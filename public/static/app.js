@@ -190,17 +190,22 @@ function renderScreen() {
 // Render login screen
 function renderLoginScreen() {
   return `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 -m-8">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -m-8">
       <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
         <div class="text-center mb-8">
-          <div class="inline-block bg-indigo-600 rounded-full p-4 mb-4">
-            <i class="fas fa-headphones text-white text-4xl"></i>
+          <!-- Toho Logo -->
+          <div class="mb-6">
+            <img src="/toho-logo.png" alt="Toho Logo" class="mx-auto h-24 object-contain">
           </div>
-          <h1 class="text-3xl font-bold text-gray-800 mb-2">
-            リスニングテスト自動作成システム
+          
+          <h1 class="text-2xl font-bold text-gray-800 mb-2">
+            Toho Junior High and Senior High School
           </h1>
+          <h2 class="text-xl font-semibold text-blue-800 mb-3">
+            Listening Test Maker
+          </h2>
           <p class="text-gray-600 text-sm">
-            ログインしてご利用ください
+            桐朋中学校・桐朋高等学校 リスニング教材作成システム
           </p>
         </div>
         
@@ -2831,37 +2836,42 @@ window.deleteUser = deleteUser;
 
 function renderMenuScreen() {
   return `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 -m-8">
-      <div class="bg-white rounded-2xl shadow-2xl p-12 w-full max-w-2xl fade-in">
-        <div class="text-center mb-8">
-          <div class="inline-block bg-indigo-600 rounded-full p-4 mb-4">
-            <i class="fas fa-headphones text-white text-4xl"></i>
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -m-8">
+      <div class="bg-white rounded-2xl shadow-2xl p-12 w-full max-w-3xl fade-in">
+        <div class="text-center mb-10">
+          <!-- Toho Logo -->
+          <div class="mb-6">
+            <img src="/toho-logo.png" alt="Toho Logo" class="mx-auto h-20 object-contain">
           </div>
+          
           <h1 class="text-3xl font-bold text-gray-800 mb-2">
-            リスニングテスト自動作成システム
+            Toho Listening Test Maker
           </h1>
+          <p class="text-lg text-blue-800 font-semibold mb-1">
+            桐朋中学校・桐朋高等学校
+          </p>
           <p class="text-gray-600 text-sm">
-            メニューを選択してください
+            リスニング教材作成システム
           </p>
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <!-- Create New Test -->
-          <button id="createTestButton" class="group relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
+          <button id="createTestButton" class="group relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl border-2 border-blue-700">
             <div class="relative z-10">
               <i class="fas fa-plus-circle text-5xl mb-4"></i>
-              <h2 class="text-2xl font-bold mb-2">新規作成</h2>
-              <p class="text-sm opacity-90">リスニングテストを作成</p>
+              <h2 class="text-2xl font-bold mb-2">Create New Test</h2>
+              <p class="text-sm opacity-90">新規リスニングテスト作成</p>
             </div>
             <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
           </button>
           
           <!-- Access Folders -->
-          <button id="accessFoldersButton" class="group relative overflow-hidden bg-gradient-to-br from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
+          <button id="accessFoldersButton" class="group relative overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl border-2 border-indigo-700">
             <div class="relative z-10">
               <i class="fas fa-folder-open text-5xl mb-4"></i>
-              <h2 class="text-2xl font-bold mb-2">フォルダ管理</h2>
-              <p class="text-sm opacity-90">保存済みテストを閲覧</p>
+              <h2 class="text-2xl font-bold mb-2">Folder Management</h2>
+              <p class="text-sm opacity-90">保存済みテストを閲覧・管理</p>
             </div>
             <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
           </button>
