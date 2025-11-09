@@ -1368,7 +1368,7 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Toho Listening Test Maker - 桐朋中学校・桐朋高等学校</title>
+        <title>Toho Listening Maker - 桐朋中学校・桐朋高等学校</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
@@ -1376,25 +1376,28 @@ app.get('/', (c) => {
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         </style>
     </head>
-    <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <body class="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 min-h-screen">
         <div class="container mx-auto px-4 py-8 max-w-4xl">
             <!-- Header -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6 border-t-4 border-blue-800">
+            <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-gradient-to-r from-purple-600 to-blue-600">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
-                        <img src="/toho-logo.png" alt="Toho Logo" class="h-16 mr-4">
+                        <div class="relative">
+                            <div class="absolute inset-0 bg-gradient-to-r from-purple-400 to-blue-400 rounded-full blur-lg opacity-30"></div>
+                            <img src="/toho-logo.png" alt="Toho Logo" class="relative h-16 mr-4 drop-shadow-lg">
+                        </div>
                         <div>
-                            <h1 class="text-2xl font-bold text-blue-900 mb-1">
-                                Toho Listening Test Maker
+                            <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 bg-clip-text text-transparent mb-1">
+                                Toho Listening Maker
                             </h1>
-                            <p class="text-sm text-gray-600">桐朋中学校・桐朋高等学校 リスニング教材作成システム</p>
+                            <p class="text-sm text-gray-600 font-medium">桐朋中学校・桐朋高等学校</p>
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button id="userManagementButton" class="hidden bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 transition shadow-md">
+                        <button id="userManagementButton" class="hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg font-semibold">
                             <i class="fas fa-users mr-2"></i>ユーザー管理
                         </button>
-                        <button id="logoutButton" class="hidden bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition shadow-md">
+                        <button id="logoutButton" class="hidden bg-white text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-100 transition-all shadow-md border border-gray-200 font-semibold">
                             <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
                         </button>
                     </div>

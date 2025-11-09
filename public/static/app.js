@@ -190,52 +190,60 @@ function renderScreen() {
 // Render login screen
 function renderLoginScreen() {
   return `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -m-8">
-      <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md fade-in">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-900 to-blue-950 -m-8 relative overflow-hidden">
+      <!-- Background decorative elements -->
+      <div class="absolute inset-0 opacity-10">
+        <div class="absolute top-20 left-10 w-72 h-72 bg-purple-500 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-20 right-10 w-96 h-96 bg-blue-500 rounded-full blur-3xl"></div>
+      </div>
+      
+      <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 w-full max-w-md fade-in border border-purple-100">
         <div class="text-center mb-8">
-          <!-- Toho Logo -->
-          <div class="mb-6">
-            <img src="/toho-logo.png" alt="Toho Logo" class="mx-auto h-24 object-contain">
+          <!-- Toho Logo with elegant styling -->
+          <div class="mb-6 relative">
+            <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full blur-2xl opacity-20 scale-110"></div>
+            <img src="/toho-logo.png" alt="Toho Logo" class="relative mx-auto h-28 object-contain drop-shadow-2xl">
           </div>
           
-          <h1 class="text-2xl font-bold text-gray-800 mb-2">
-            Toho Junior High and Senior High School
+          <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-3 tracking-tight">
+            Toho Listening Maker
           </h1>
-          <h2 class="text-xl font-semibold text-blue-800 mb-3">
-            Listening Test Maker
-          </h2>
-          <p class="text-gray-600 text-sm">
-            桐朋中学校・桐朋高等学校 リスニング教材作成システム
+          <div class="h-1 w-24 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-4"></div>
+          <p class="text-gray-600 text-sm font-medium">
+            桐朋中学校・桐朋高等学校
+          </p>
+          <p class="text-gray-500 text-xs mt-1">
+            Professional Listening Test Creation System
           </p>
         </div>
         
-        <form id="loginForm" class="space-y-6">
+        <form id="loginForm" class="space-y-5">
           <!-- Username -->
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-              <i class="fas fa-user mr-2"></i>ユーザー名
+            <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+              <i class="fas fa-user mr-2 text-purple-600"></i>Username
             </label>
             <input type="text" id="username" name="username" 
                    required
                    autocomplete="username"
-                   placeholder="ユーザー名を入力"
-                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                   placeholder="Enter your username"
+                   class="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-gray-50 focus:bg-white">
           </div>
           
           <!-- Password -->
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-2">
-              <i class="fas fa-lock mr-2"></i>パスワード
+            <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+              <i class="fas fa-lock mr-2 text-purple-600"></i>Password
             </label>
             <input type="password" id="password" name="password" 
                    required
                    autocomplete="current-password"
-                   placeholder="パスワードを入力"
-                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                   placeholder="Enter your password"
+                   class="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-gray-50 focus:bg-white">
           </div>
           
           <!-- Error message -->
-          <div id="loginError" class="hidden bg-red-50 border-2 border-red-200 rounded-lg p-3">
+          <div id="loginError" class="hidden bg-red-50 border-l-4 border-red-500 rounded-lg p-3">
             <p class="text-red-800 text-sm flex items-center">
               <i class="fas fa-exclamation-circle mr-2"></i>
               <span id="loginErrorMessage"></span>
@@ -244,17 +252,17 @@ function renderLoginScreen() {
           
           <!-- Login button -->
           <button type="submit" id="loginButton"
-                  class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-            <i class="fas fa-sign-in-alt mr-2"></i>ログイン
+                  class="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-2xl transform hover:-translate-y-1 active:translate-y-0">
+            <i class="fas fa-sign-in-alt mr-2"></i>Sign In
           </button>
         </form>
         
-        <!-- Demo credentials info (remove in production) -->
-        <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <p class="text-xs text-gray-600 text-center">
-            <i class="fas fa-info-circle mr-1"></i>
-            デモ用ログイン情報<br>
-            <span class="font-mono">ユーザー名: admin / パスワード: listening2024</span>
+        <!-- Demo credentials info -->
+        <div class="mt-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
+          <p class="text-xs text-gray-700 text-center font-medium">
+            <i class="fas fa-info-circle mr-1 text-purple-600"></i>
+            Demo Account<br>
+            <span class="font-mono text-purple-800">admin / listening2024</span>
           </p>
         </div>
       </div>
@@ -2836,42 +2844,55 @@ window.deleteUser = deleteUser;
 
 function renderMenuScreen() {
   return `
-    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 -m-8">
-      <div class="bg-white rounded-2xl shadow-2xl p-12 w-full max-w-3xl fade-in">
-        <div class="text-center mb-10">
-          <!-- Toho Logo -->
-          <div class="mb-6">
-            <img src="/toho-logo.png" alt="Toho Logo" class="mx-auto h-20 object-contain">
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-900 to-blue-950 -m-8 relative overflow-hidden">
+      <!-- Background decorative elements -->
+      <div class="absolute inset-0 opacity-10">
+        <div class="absolute top-20 left-10 w-96 h-96 bg-purple-500 rounded-full blur-3xl animate-pulse"></div>
+        <div class="absolute bottom-20 right-10 w-96 h-96 bg-blue-500 rounded-full blur-3xl animate-pulse"></div>
+      </div>
+      
+      <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-12 w-full max-w-4xl fade-in border border-purple-100">
+        <div class="text-center mb-12">
+          <!-- Toho Logo with elegant styling -->
+          <div class="mb-8 relative">
+            <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full blur-3xl opacity-20 scale-110"></div>
+            <img src="/toho-logo.png" alt="Toho Logo" class="relative mx-auto h-24 object-contain drop-shadow-2xl">
           </div>
           
-          <h1 class="text-3xl font-bold text-gray-800 mb-2">
-            Toho Listening Test Maker
+          <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-4 tracking-tight">
+            Toho Listening Maker
           </h1>
-          <p class="text-lg text-blue-800 font-semibold mb-1">
+          <div class="h-1.5 w-32 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-6"></div>
+          <p class="text-xl text-gray-700 font-bold mb-2">
             桐朋中学校・桐朋高等学校
           </p>
-          <p class="text-gray-600 text-sm">
-            リスニング教材作成システム
+          <p class="text-gray-500 text-sm font-medium">
+            Professional Listening Test Creation System
           </p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <!-- Create New Test -->
-          <button id="createTestButton" class="group relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl border-2 border-blue-700">
+          <button id="createTestButton" class="group relative overflow-hidden bg-gradient-to-br from-purple-600 via-purple-700 to-blue-600 hover:from-purple-700 hover:via-purple-800 hover:to-blue-700 text-white rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl border-2 border-purple-400/30">
+            <div class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div class="relative z-10">
-              <i class="fas fa-plus-circle text-5xl mb-4"></i>
-              <h2 class="text-2xl font-bold mb-2">Create New Test</h2>
-              <p class="text-sm opacity-90">新規リスニングテスト作成</p>
+              <div class="bg-white/20 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                <i class="fas fa-plus-circle text-5xl"></i>
+              </div>
+              <h2 class="text-2xl font-bold mb-3">Create New Test</h2>
+              <p class="text-sm opacity-90 font-medium">新規リスニングテスト作成</p>
             </div>
-            <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
           </button>
           
           <!-- Access Folders -->
-          <button id="accessFoldersButton" class="group relative overflow-hidden bg-gradient-to-br from-indigo-600 to-indigo-800 hover:from-indigo-700 hover:to-indigo-900 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl border-2 border-indigo-700">
+          <button id="accessFoldersButton" class="group relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-600 hover:from-blue-700 hover:via-indigo-800 hover:to-purple-700 text-white rounded-2xl p-10 transition-all duration-300 transform hover:scale-105 hover:shadow-2xl border-2 border-blue-400/30">
+            <div class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div class="relative z-10">
-              <i class="fas fa-folder-open text-5xl mb-4"></i>
-              <h2 class="text-2xl font-bold mb-2">Folder Management</h2>
-              <p class="text-sm opacity-90">保存済みテストを閲覧・管理</p>
+              <div class="bg-white/20 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                <i class="fas fa-folder-open text-5xl"></i>
+              </div>
+              <h2 class="text-2xl font-bold mb-3">Folder Management</h2>
+              <p class="text-sm opacity-90 font-medium">保存済みテストを閲覧・管理</p>
             </div>
             <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
           </button>
