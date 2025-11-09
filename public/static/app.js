@@ -1,9 +1,11 @@
 // State management
 let currentState = {
-  screen: 'login', // 'login', 'input', 'questionSettings', 'review', 'userManagement'
+  screen: 'login', // 'login', 'menu', 'input', 'questionSettings', 'review', 'userManagement', 'folders', 'folderView'
   isAuthenticated: false,
   authToken: null,
   isAdmin: false,
+  currentFolderId: null, // Currently selected folder ID
+  currentFolderName: '', // Currently selected folder name
   formData: {
     format: 'monologue',
     topic: '',
@@ -19,7 +21,13 @@ let currentState = {
   generatedQuestions: [],
   speakers: [], // Array of speaker objects with name, accent, speed
   audioSegments: null, // Array of {speaker, audio} objects
-  useGeminiTTS: false // Flag to use Gemini TTS instead of Google TTS
+  useGeminiTTS: false, // Flag to use Gemini TTS instead of Google TTS
+  narratorSettings: { // Default narrator settings
+    language: 'en', // 'en' for English, 'ja' for Japanese
+    accent: 'US',
+    gender: 'male',
+    voiceStyle: 'neutral'
+  }
 };
 
 // Initialize app
@@ -88,7 +96,7 @@ async function verifyToken(token) {
     if (response.data.valid) {
       currentState.isAuthenticated = true;
       currentState.authToken = token;
-      currentState.screen = 'input';
+      currentState.screen = 'menu'; // Show menu after login
       showLogoutButton();
       renderScreen();
     } else {
@@ -147,6 +155,10 @@ function renderScreen() {
       appContainer.innerHTML = renderLoginScreen();
       attachLoginScreenListeners();
       break;
+    case 'menu':
+      appContainer.innerHTML = renderMenuScreen();
+      attachMenuScreenListeners();
+      break;
     case 'input':
       appContainer.innerHTML = renderInputScreen();
       attachInputScreenListeners();
@@ -158,6 +170,16 @@ function renderScreen() {
     case 'review':
       appContainer.innerHTML = renderReviewScreen();
       attachReviewScreenListeners();
+      break;
+    case 'speakerSettings':
+      appContainer.innerHTML = renderSpeakerSettingsScreen();
+      attachSpeakerSettingsListeners();
+      break;
+    case 'folders':
+      renderFoldersScreen();
+      break;
+    case 'folderView':
+      renderFolderViewScreen();
       break;
     case 'userManagement':
       renderUserManagementScreen();
@@ -294,8 +316,8 @@ function attachLoginScreenListeners() {
   });
 }
 
-// Render nationality selectors
-function renderNationalitySelectors(numSpeakers, nationalities) {
+// Render nationality, gender, and voice style selectors
+function renderNationalitySelectors(numSpeakers, speakerSettings) {
   const nationalityOptions = [
     { value: 'US', label: 'アメリカ' },
     { value: 'UK', label: 'イギリス' },
@@ -303,23 +325,56 @@ function renderNationalitySelectors(numSpeakers, nationalities) {
     { value: 'Canadian', label: 'カナダ' },
     { value: 'Indian', label: 'インド' },
     { value: 'Irish', label: 'アイルランド' },
-    { value: 'Scottish', label: 'スコットランド' },
-    { value: 'South African', label: '南アフリカ' },
-    { value: 'New Zealand', label: 'ニュージーランド' },
-    { value: 'Singapore', label: 'シンガポール' }
+    { value: 'Scottish', label: 'スコットランド' }
+  ];
+  
+  const genderOptions = [
+    { value: 'male', label: '男性' },
+    { value: 'female', label: '女性' }
+  ];
+  
+  const voiceStyleOptions = [
+    { value: 'neutral', label: '標準' },
+    { value: 'warm', label: '明るい' },
+    { value: 'calm', label: '落ち着いた' }
   ];
   
   let html = '';
   for (let i = 0; i < numSpeakers; i++) {
-    const selectedNationality = nationalities[i] || nationalityOptions[i % nationalityOptions.length].value;
+    const settings = speakerSettings?.[i] || {};
+    const selectedNationality = settings.nationality || nationalityOptions[i % nationalityOptions.length].value;
+    const selectedGender = settings.gender || 'male';
+    const selectedVoiceStyle = settings.voiceStyle || 'neutral';
+    
     html += `
-      <div class="flex items-center gap-2">
-        <label class="text-sm text-gray-700 w-20">話者${i + 1}:</label>
-        <select name="nationality_${i}" class="nationality-select flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-          ${nationalityOptions.map(opt => `
-            <option value="${opt.value}" ${selectedNationality === opt.value ? 'selected' : ''}>${opt.label}</option>
-          `).join('')}
-        </select>
+      <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+        <label class="text-sm font-semibold text-gray-700 mb-2 block">話者${i + 1}</label>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-xs text-gray-600">アクセント</label>
+            <select name="nationality_${i}" class="nationality-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500">
+              ${nationalityOptions.map(opt => `
+                <option value="${opt.value}" ${selectedNationality === opt.value ? 'selected' : ''}>${opt.label}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-600">性別</label>
+            <select name="gender_${i}" class="gender-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500">
+              ${genderOptions.map(opt => `
+                <option value="${opt.value}" ${selectedGender === opt.value ? 'selected' : ''}>${opt.label}</option>
+              `).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-600">声質</label>
+            <select name="voiceStyle_${i}" class="voiceStyle-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500">
+              ${voiceStyleOptions.map(opt => `
+                <option value="${opt.value}" ${selectedVoiceStyle === opt.value ? 'selected' : ''}>${opt.label}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -440,7 +495,26 @@ function renderInputScreen() {
                 <i class="fas fa-globe mr-2"></i>各話者の国籍
               </label>
               <div id="nationalitySelectors" class="space-y-2">
-                ${renderNationalitySelectors(currentState.formData.numSpeakers, currentState.formData.speakerNationalities)}
+                ${renderNationalitySelectors(currentState.formData.numSpeakers, currentState.formData.speakerSettings)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- モノローグのスピーカー設定 (モノローグの場合のみ表示) -->
+        <div id="monologueSettings" style="display: ${currentState.formData.format === 'monologue' ? 'block' : 'none'}">
+          <div class="border-2 border-green-200 rounded-lg p-4 bg-green-50">
+            <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
+              <i class="fas fa-user mr-2 text-green-600"></i>話者設定
+            </h3>
+            
+            <!-- 話者の音声設定 -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">
+                <i class="fas fa-microphone mr-2"></i>話者の音声設定
+              </label>
+              <div id="monologueNationalitySelector" class="space-y-2">
+                ${renderNationalitySelectors(1, currentState.formData.speakerSettings)}
               </div>
             </div>
           </div>
@@ -595,13 +669,16 @@ function attachInputScreenListeners() {
     renderScreen();
   });
   
-  // Toggle dialogue settings visibility based on format
+  // Toggle dialogue/monologue settings visibility based on format
+  const monologueSettings = document.getElementById('monologueSettings');
   formatRadios.forEach(radio => {
     radio.addEventListener('change', (e) => {
       if (e.target.value === 'dialogue') {
         dialogueSettings.style.display = 'block';
+        monologueSettings.style.display = 'none';
       } else {
         dialogueSettings.style.display = 'none';
+        monologueSettings.style.display = 'block';
       }
     });
   });
@@ -611,7 +688,7 @@ function attachInputScreenListeners() {
     numSpeakersSelect.addEventListener('change', (e) => {
       const numSpeakers = parseInt(e.target.value);
       const nationalitySelectors = document.getElementById('nationalitySelectors');
-      nationalitySelectors.innerHTML = renderNationalitySelectors(numSpeakers, currentState.formData.speakerNationalities);
+      nationalitySelectors.innerHTML = renderNationalitySelectors(numSpeakers, currentState.formData.speakerSettings);
     });
   }
   
@@ -622,13 +699,24 @@ function attachInputScreenListeners() {
     const formData = new FormData(form);
     const format = formData.get('format');
     
-    // Get speaker nationalities
+    // Get speaker settings (nationality, gender, voice style)
     const numSpeakers = parseInt(formData.get('numSpeakers') || 2);
-    const speakerNationalities = [];
+    const speakerSettings = [];
     if (format === 'dialogue') {
       for (let i = 0; i < numSpeakers; i++) {
-        speakerNationalities.push(formData.get(`nationality_${i}`) || 'US');
+        speakerSettings.push({
+          nationality: formData.get(`nationality_${i}`) || 'US',
+          gender: formData.get(`gender_${i}`) || 'male',
+          voiceStyle: formData.get(`voiceStyle_${i}`) || 'neutral'
+        });
       }
+    } else if (format === 'monologue') {
+      // For monologue, use first speaker's settings (or defaults)
+      speakerSettings.push({
+        nationality: formData.get(`nationality_0`) || 'US',
+        gender: formData.get(`gender_0`) || 'male',
+        voiceStyle: formData.get(`voiceStyle_0`) || 'neutral'
+      });
     }
     
     currentState.formData = {
@@ -640,7 +728,7 @@ function attachInputScreenListeners() {
       createQuestions: formData.get('createQuestions') === 'on',
       questionSettings: currentState.formData.questionSettings,
       numSpeakers: numSpeakers,
-      speakerNationalities: speakerNationalities
+      speakerSettings: speakerSettings
     };
     
     // Validation
@@ -652,12 +740,17 @@ function attachInputScreenListeners() {
     // Navigate to next screen
     if (currentState.formData.createQuestions) {
       currentState.screen = 'questionSettings';
+      renderScreen();
     } else {
+      // Disable submit button to prevent double submission
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>生成準備中...';
+      }
       // Generate script directly
       generateScript();
     }
-    
-    renderScreen();
   });
 }
 
@@ -728,6 +821,13 @@ function attachQuestionSettingsListeners() {
     const formData = new FormData(form);
     currentState.formData.questionSettings = formData.get('questionSettings');
     
+    // Disable submit button to prevent double submission
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>生成準備中...';
+    }
+    
     // Generate script
     generateScript();
   });
@@ -754,15 +854,19 @@ async function generateScript() {
   appContainer.innerHTML = `
     <div class="bg-white rounded-lg shadow-lg p-12 text-center fade-in">
       <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mb-4"></div>
-      <h2 class="text-2xl font-bold text-gray-800 mb-2">AIがスクリプトを生成中...</h2>
-      <p class="text-gray-600" id="generation-status">しばらくお待ちください...</p>
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">原稿を生成中です</h2>
+      <p class="text-gray-600 mb-2" id="generation-status">AIがスクリプトを作成しています...</p>
+      <p class="text-sm text-orange-600 font-semibold mt-4">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        このまましばらくお待ちください。画面を閉じたり戻ったりしないでください。
+      </p>
     </div>
   `;
   
   const numQuestions = currentState.formData.questionSettings === 'long' ? 3 : 1;
   const isLong = currentState.formData.questionSettings === 'long';
   const numSpeakers = currentState.formData.numSpeakers || 2;
-  const speakerNationalities = currentState.formData.speakerNationalities || ['US', 'UK'];
+  const speakerSettings = currentState.formData.speakerSettings || [];
   
   try {
     // Call OpenAI API for script generation
@@ -773,7 +877,7 @@ async function generateScript() {
       cefrLevel: currentState.formData.cefrLevel || 'B1',
       otherConditions: currentState.formData.otherConditions || '',
       numSpeakers: numSpeakers,
-      speakerNationalities: speakerNationalities,
+      speakerSettings: speakerSettings,
       isLong: isLong
     });
     
@@ -787,24 +891,31 @@ async function generateScript() {
     currentState.generatedScript = scriptResponse.data.script;
     
     // Extract speaker names from generated script
+    // speakerSettings is already defined at line 852
     const speakerMatches = currentState.generatedScript.match(/^([A-Za-z]+):/gm);
     if (speakerMatches && speakerMatches.length > 0) {
       const uniqueSpeakers = [...new Set(speakerMatches.map(m => m.replace(':', '').trim()))];
-      currentState.speakers = uniqueSpeakers.map((name, i) => ({
-        name: name,
-        accent: speakerNationalities[i] || 'US',
-        speed: 1.0,
-        gender: 'male'
-      }));
+      currentState.speakers = uniqueSpeakers.map((name, i) => {
+        const settings = speakerSettings[i] || {};
+        return {
+          name: name,
+          accent: settings.nationality || 'US',
+          speed: 1.0,
+          gender: settings.gender || 'male',
+          voiceStyle: settings.voiceStyle || 'neutral'
+        };
+      });
     } else if (currentState.formData.format === 'monologue') {
       // For monologue, extract speaker name from [Name] format
       const nameMatch = currentState.generatedScript.match(/^\[([A-Za-z]+)\]/);
       if (nameMatch) {
+        const settings = speakerSettings[0] || {};
         currentState.speakers = [{
           name: nameMatch[1],
-          accent: 'US',
+          accent: settings.nationality || 'US',
           speed: 1.0,
-          gender: 'male'
+          gender: settings.gender || 'male',
+          voiceStyle: settings.voiceStyle || 'neutral'
         }];
       }
     }
@@ -1085,20 +1196,53 @@ function renderReviewScreen() {
         </div>
       </div>
 
-      <!-- TTS Engine Selection -->
-      <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-center justify-between">
+      <!-- Narrator Settings -->
+      <div class="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+          <i class="fas fa-book-reader mr-2 text-purple-600"></i>ナレーター設定
+        </h3>
+        <p class="text-sm text-purple-700 mb-3">
+          <i class="fas fa-info-circle mr-1"></i>ナレーションが日本語の場合は「言語」を日本語に設定してください
+        </p>
+        <div class="grid grid-cols-4 gap-3">
           <div>
-            <label class="flex items-center cursor-pointer">
-              <input type="checkbox" id="useGeminiTTSCheckbox" ${currentState.useGeminiTTS ? 'checked' : ''}
-                     class="w-5 h-5 text-indigo-600 focus:ring-indigo-500 rounded">
-              <span class="ml-3">
-                <span class="font-semibold text-gray-800">🎭 Gemini TTS（感情表現）を使用する</span>
-                <span class="block text-xs text-gray-600 mt-1">より自然な感情表現が可能（実験的機能）</span>
-              </span>
-            </label>
+            <label class="text-sm text-gray-700 mb-1 block">言語</label>
+            <select id="narratorLanguage" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+              <option value="en" ${(currentState.narratorSettings?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+              <option value="ja" ${(currentState.narratorSettings?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
+            </select>
+          </div>
+          <div id="narratorAccentDiv">
+            <label class="text-sm text-gray-700 mb-1 block">アクセント</label>
+            <select id="narratorAccent" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+              <option value="US" ${(currentState.narratorSettings?.accent || 'US') === 'US' ? 'selected' : ''}>アメリカ</option>
+              <option value="UK" ${(currentState.narratorSettings?.accent || 'US') === 'UK' ? 'selected' : ''}>イギリス</option>
+              <option value="Australian" ${(currentState.narratorSettings?.accent || 'US') === 'Australian' ? 'selected' : ''}>オーストラリア</option>
+              <option value="Canadian" ${(currentState.narratorSettings?.accent || 'US') === 'Canadian' ? 'selected' : ''}>カナダ</option>
+              <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
+              <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
+              <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-gray-700 mb-1 block">性別</label>
+            <select id="narratorGender" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+              <option value="male" ${(currentState.narratorSettings?.gender || 'male') === 'male' ? 'selected' : ''}>男性</option>
+              <option value="female" ${(currentState.narratorSettings?.gender || 'male') === 'female' ? 'selected' : ''}>女性</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-gray-700 mb-1 block">声質</label>
+            <select id="narratorVoiceStyle" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+              <option value="neutral" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'neutral' ? 'selected' : ''}>標準</option>
+              <option value="warm" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'warm' ? 'selected' : ''}>明るい</option>
+              <option value="calm" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
+            </select>
           </div>
         </div>
+        <p class="text-xs text-gray-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>スクリプトに [Narration: テキスト] がある場合、この設定が適用されます
+        </p>
       </div>
 
       <div class="flex gap-4">
@@ -1128,15 +1272,9 @@ function attachReviewScreenListeners() {
   const generateAudioButton = document.getElementById('generateAudioButton');
   const scriptEditor = document.getElementById('scriptEditor');
   const addNarrationButton = document.getElementById('addNarrationButton');
-  const useGeminiTTSCheckbox = document.getElementById('useGeminiTTSCheckbox');
-  
-  // Gemini TTS checkbox
-  if (useGeminiTTSCheckbox) {
-    useGeminiTTSCheckbox.addEventListener('change', (e) => {
-      currentState.useGeminiTTS = e.target.checked;
-      console.log('Gemini TTS:', currentState.useGeminiTTS ? 'Enabled' : 'Disabled');
-    });
-  }
+  const narratorAccent = document.getElementById('narratorAccent');
+  const narratorGender = document.getElementById('narratorGender');
+  const narratorVoiceStyle = document.getElementById('narratorVoiceStyle');
   
   // Update script when edited
   scriptEditor.addEventListener('input', (e) => {
@@ -1152,6 +1290,43 @@ function attachReviewScreenListeners() {
       scriptEditor.value = newScript;
       currentState.generatedScript = newScript;
     }
+  });
+  
+  // Narrator settings listeners
+  const narratorLanguage = document.getElementById('narratorLanguage');
+  const narratorAccentDiv = document.getElementById('narratorAccentDiv');
+  
+  // Language change handler - hide accent selector for Japanese
+  narratorLanguage.addEventListener('change', (e) => {
+    if (!currentState.narratorSettings) currentState.narratorSettings = {};
+    currentState.narratorSettings.language = e.target.value;
+    
+    // Show/hide accent selector based on language
+    if (e.target.value === 'ja') {
+      narratorAccentDiv.style.display = 'none';
+    } else {
+      narratorAccentDiv.style.display = 'block';
+    }
+  });
+  
+  // Initialize accent visibility based on current language
+  if (currentState.narratorSettings?.language === 'ja') {
+    narratorAccentDiv.style.display = 'none';
+  }
+  
+  narratorAccent.addEventListener('change', (e) => {
+    if (!currentState.narratorSettings) currentState.narratorSettings = {};
+    currentState.narratorSettings.accent = e.target.value;
+  });
+  
+  narratorGender.addEventListener('change', (e) => {
+    if (!currentState.narratorSettings) currentState.narratorSettings = {};
+    currentState.narratorSettings.gender = e.target.value;
+  });
+  
+  narratorVoiceStyle.addEventListener('change', (e) => {
+    if (!currentState.narratorSettings) currentState.narratorSettings = {};
+    currentState.narratorSettings.voiceStyle = e.target.value;
   });
   
   backToInputButton.addEventListener('click', () => {
@@ -1220,11 +1395,295 @@ function attachReviewScreenListeners() {
   });
   
   generateAudioButton.addEventListener('click', () => {
-    // Parse script and generate audio directly (skip audio settings screen)
+    // Parse script to detect speakers
     const lines = parseScriptForSettings(currentState.generatedScript);
     currentState.parsedLines = lines;
     
-    // Initialize default speaker and question reader settings if not exists
+    // Show speaker settings screen before generating audio
+    currentState.screen = 'speakerSettings';
+    renderScreen();
+  });
+}
+
+// Render speaker settings screen
+function renderSpeakerSettingsScreen() {
+  // Detect speakers from parsed lines
+  const speakerNames = [...new Set(currentState.parsedLines
+    .filter(line => line.speaker && line.speaker !== 'Narration')
+    .map(line => line.speaker))];
+  
+  // Check if there are narration lines
+  const hasNarration = currentState.parsedLines.some(line => 
+    line.type === 'narration' || line.isNarration || line.speaker === 'Narration'
+  );
+  
+  // Initialize speakers with existing settings or defaults
+  if (!currentState.speakers || currentState.speakers.length === 0) {
+    currentState.speakers = speakerNames.map((name, index) => ({
+      name: name,
+      language: 'en',
+      accent: ['US', 'UK', 'Australian', 'Canadian'][index % 4],
+      gender: index % 2 === 0 ? 'male' : 'female',
+      voiceStyle: 'neutral',
+      speed: 1.0
+    }));
+  }
+  
+  const speakersHTML = currentState.speakers.map((speaker, index) => `
+    <div class="border-2 border-blue-200 rounded-lg p-4 bg-blue-50 mb-4">
+      <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+        <i class="fas fa-user mr-2 text-blue-600"></i>${speaker.name}
+      </h4>
+      <div class="grid grid-cols-5 gap-3">
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">言語</label>
+          <select class="speaker-language-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded" data-speaker-index="${index}">
+            <option value="en" ${speaker.language === 'en' ? 'selected' : ''}>英語</option>
+            <option value="ja" ${speaker.language === 'ja' ? 'selected' : ''}>日本語</option>
+          </select>
+        </div>
+        <div class="speaker-accent-div" data-speaker-index="${index}" style="display: ${speaker.language === 'ja' ? 'none' : 'block'}">
+          <label class="text-xs text-gray-700 mb-1 block">アクセント</label>
+          <select class="speaker-accent-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded" data-speaker-index="${index}">
+            <option value="US" ${speaker.accent === 'US' ? 'selected' : ''}>アメリカ</option>
+            <option value="UK" ${speaker.accent === 'UK' ? 'selected' : ''}>イギリス</option>
+            <option value="Australian" ${speaker.accent === 'Australian' ? 'selected' : ''}>オーストラリア</option>
+            <option value="Canadian" ${speaker.accent === 'Canadian' ? 'selected' : ''}>カナダ</option>
+            <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド</option>
+            <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド</option>
+            <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">性別</label>
+          <select class="speaker-gender-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded" data-speaker-index="${index}">
+            <option value="male" ${speaker.gender === 'male' ? 'selected' : ''}>男性</option>
+            <option value="female" ${speaker.gender === 'female' ? 'selected' : ''}>女性</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">声質</label>
+          <select class="speaker-voiceStyle-select w-full px-2 py-1.5 text-sm border border-gray-300 rounded" data-speaker-index="${index}">
+            <option value="neutral" ${speaker.voiceStyle === 'neutral' ? 'selected' : ''}>標準</option>
+            <option value="warm" ${speaker.voiceStyle === 'warm' ? 'selected' : ''}>明るい</option>
+            <option value="calm" ${speaker.voiceStyle === 'calm' ? 'selected' : ''}>落ち着いた</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">速度</label>
+          <input type="number" min="0.5" max="2.0" step="0.1" value="${speaker.speed || 1.0}"
+                 class="speaker-speed-input w-full px-2 py-1.5 text-sm border border-gray-300 rounded" data-speaker-index="${index}">
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  const narratorHTML = hasNarration ? `
+    <div class="border-2 border-purple-200 rounded-lg p-4 bg-purple-50 mb-4">
+      <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
+        <i class="fas fa-book-reader mr-2 text-purple-600"></i>ナレーター
+      </h4>
+      <div class="grid grid-cols-5 gap-3">
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">言語</label>
+          <select id="finalNarratorLanguage" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+            <option value="en" ${(currentState.narratorSettings?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+            <option value="ja" ${(currentState.narratorSettings?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
+          </select>
+        </div>
+        <div id="finalNarratorAccentDiv" style="display: ${(currentState.narratorSettings?.language || 'en') === 'ja' ? 'none' : 'block'}">
+          <label class="text-xs text-gray-700 mb-1 block">アクセント</label>
+          <select id="finalNarratorAccent" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+            <option value="US" ${(currentState.narratorSettings?.accent || 'US') === 'US' ? 'selected' : ''}>アメリカ</option>
+            <option value="UK" ${(currentState.narratorSettings?.accent || 'US') === 'UK' ? 'selected' : ''}>イギリス</option>
+            <option value="Australian" ${(currentState.narratorSettings?.accent || 'US') === 'Australian' ? 'selected' : ''}>オーストラリア</option>
+            <option value="Canadian" ${(currentState.narratorSettings?.accent || 'US') === 'Canadian' ? 'selected' : ''}>カナダ</option>
+            <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
+            <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
+            <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">性別</label>
+          <select id="finalNarratorGender" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+            <option value="male" ${(currentState.narratorSettings?.gender || 'male') === 'male' ? 'selected' : ''}>男性</option>
+            <option value="female" ${(currentState.narratorSettings?.gender || 'male') === 'female' ? 'selected' : ''}>女性</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">声質</label>
+          <select id="finalNarratorVoiceStyle" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+            <option value="neutral" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'neutral' ? 'selected' : ''}>標準</option>
+            <option value="warm" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'warm' ? 'selected' : ''}>明るい</option>
+            <option value="calm" ${(currentState.narratorSettings?.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-700 mb-1 block">速度</label>
+          <input type="number" min="0.5" max="2.0" step="0.1" value="1.0"
+                 id="finalNarratorSpeed" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
+        </div>
+      </div>
+    </div>
+  ` : '';
+  
+  return `
+    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-microphone-alt mr-3 text-green-600"></i>
+        音声設定
+      </h2>
+      
+      <p class="text-sm text-gray-600 mb-6">
+        <i class="fas fa-info-circle mr-2"></i>
+        各話者とナレーターの音声特性を設定してください
+      </p>
+      
+      ${speakersHTML}
+      ${narratorHTML}
+      
+      <div class="flex gap-4 mt-6">
+        <button id="backToReviewButton"
+                class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+          <i class="fas fa-arrow-left mr-2"></i>戻る
+        </button>
+        <button id="startAudioGenerationButton"
+                class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition shadow-md">
+          <i class="fas fa-magic mr-2"></i>音声生成開始
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Attach listeners for speaker settings screen
+function attachSpeakerSettingsListeners() {
+  const backToReviewButton = document.getElementById('backToReviewButton');
+  const startAudioGenerationButton = document.getElementById('startAudioGenerationButton');
+  
+  // Initialize narrator settings from current form values to ensure they're set
+  const finalNarratorLanguage = document.getElementById('finalNarratorLanguage');
+  const finalNarratorAccent = document.getElementById('finalNarratorAccent');
+  const finalNarratorGender = document.getElementById('finalNarratorGender');
+  const finalNarratorVoiceStyle = document.getElementById('finalNarratorVoiceStyle');
+  const finalNarratorSpeed = document.getElementById('finalNarratorSpeed');
+  
+  if (finalNarratorLanguage) {
+    if (!currentState.narratorSettings) currentState.narratorSettings = {};
+    currentState.narratorSettings.language = finalNarratorLanguage.value;
+    if (finalNarratorAccent) currentState.narratorSettings.accent = finalNarratorAccent.value;
+    if (finalNarratorGender) currentState.narratorSettings.gender = finalNarratorGender.value;
+    if (finalNarratorVoiceStyle) currentState.narratorSettings.voiceStyle = finalNarratorVoiceStyle.value;
+    if (finalNarratorSpeed) currentState.narratorSettings.speed = parseFloat(finalNarratorSpeed.value);
+    
+    console.log('🎙️ Initialized narrator settings:', currentState.narratorSettings);
+  }
+  
+  // Language selectors for speakers
+  document.querySelectorAll('.speaker-language-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      const language = e.target.value;
+      currentState.speakers[index].language = language;
+      
+      // Show/hide accent selector based on language
+      const accentDiv = document.querySelector(`.speaker-accent-div[data-speaker-index="${index}"]`);
+      if (language === 'ja') {
+        accentDiv.style.display = 'none';
+      } else {
+        accentDiv.style.display = 'block';
+      }
+    });
+  });
+  
+  // Accent selectors for speakers
+  document.querySelectorAll('.speaker-accent-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].accent = e.target.value;
+    });
+  });
+  
+  // Gender selectors for speakers
+  document.querySelectorAll('.speaker-gender-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].gender = e.target.value;
+    });
+  });
+  
+  // Voice style selectors for speakers
+  document.querySelectorAll('.speaker-voiceStyle-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].voiceStyle = e.target.value;
+    });
+  });
+  
+  // Speed inputs for speakers
+  document.querySelectorAll('.speaker-speed-input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.speakerIndex);
+      currentState.speakers[index].speed = parseFloat(e.target.value);
+    });
+  });
+  
+  // Narrator settings event listeners
+  const finalNarratorAccentDiv = document.getElementById('finalNarratorAccentDiv');
+  
+  if (finalNarratorLanguage) {
+    finalNarratorLanguage.addEventListener('change', (e) => {
+      if (!currentState.narratorSettings) currentState.narratorSettings = {};
+      currentState.narratorSettings.language = e.target.value;
+      console.log('🔄 Narrator language changed to:', e.target.value);
+      
+      if (e.target.value === 'ja') {
+        finalNarratorAccentDiv.style.display = 'none';
+      } else {
+        finalNarratorAccentDiv.style.display = 'block';
+      }
+    });
+    
+    if (finalNarratorAccent) {
+      finalNarratorAccent.addEventListener('change', (e) => {
+        if (!currentState.narratorSettings) currentState.narratorSettings = {};
+        currentState.narratorSettings.accent = e.target.value;
+        console.log('🔄 Narrator accent changed to:', e.target.value);
+      });
+    }
+    
+    if (finalNarratorGender) {
+      finalNarratorGender.addEventListener('change', (e) => {
+        if (!currentState.narratorSettings) currentState.narratorSettings = {};
+        currentState.narratorSettings.gender = e.target.value;
+        console.log('🔄 Narrator gender changed to:', e.target.value);
+      });
+    }
+    
+    if (finalNarratorVoiceStyle) {
+      finalNarratorVoiceStyle.addEventListener('change', (e) => {
+        if (!currentState.narratorSettings) currentState.narratorSettings = {};
+        currentState.narratorSettings.voiceStyle = e.target.value;
+        console.log('🔄 Narrator voiceStyle changed to:', e.target.value);
+      });
+    }
+    
+    if (finalNarratorSpeed) {
+      finalNarratorSpeed.addEventListener('change', (e) => {
+        if (!currentState.narratorSettings) currentState.narratorSettings = {};
+        currentState.narratorSettings.speed = parseFloat(e.target.value);
+        console.log('🔄 Narrator speed changed to:', e.target.value);
+      });
+    }
+  }
+  
+  backToReviewButton.addEventListener('click', () => {
+    currentState.screen = 'review';
+    renderScreen();
+  });
+  
+  startAudioGenerationButton.addEventListener('click', () => {
+    // Initialize question reader if needed
     if (!currentState.questionReader) {
       currentState.questionReader = {
         gender: 'male',
@@ -1235,15 +1694,9 @@ function attachReviewScreenListeners() {
       };
     }
     
-    // Ensure all speakers have default settings
-    currentState.speakers = currentState.speakers.map(speaker => ({
-      name: speaker.name,
-      accent: speaker.accent || 'US',
-      gender: speaker.gender || 'male',
-      speed: speaker.speed || 1.0
-    }));
+    console.log('🚀 Starting audio generation with narrator settings:', currentState.narratorSettings);
+    console.log('🚀 Starting audio generation with speakers:', currentState.speakers);
     
-    // Start audio generation immediately
     generateAudioFromParsedLines();
   });
 }
@@ -1261,7 +1714,7 @@ async function generateAudioFromParsedLines() {
   `;
   
   try {
-    // Prepare API request with parsed lines and question reader config
+    // Prepare API request with parsed lines, question reader, and narrator config
     const requestData = {
       script: currentState.generatedScript,
       speakers: currentState.speakers,
@@ -1274,6 +1727,11 @@ async function generateAudioFromParsedLines() {
         questionPause: 2.0,
         optionPause: 0.5
       },
+      narratorSettings: currentState.narratorSettings || {
+        accent: 'US',
+        gender: 'male',
+        voiceStyle: 'neutral'
+      },
       useGeminiTTS: currentState.useGeminiTTS || false
     };
     
@@ -1282,6 +1740,11 @@ async function generateAudioFromParsedLines() {
     
     if (response.data.success) {
       currentState.audioSegments = response.data.audioSegments;
+      // CRITICAL: Preserve speakers information from response
+      if (response.data.speakers) {
+        currentState.speakers = response.data.speakers;
+      }
+      console.log('✅ Audio generated, speakers:', currentState.speakers);
       showAudioResult();
     } else {
       alert('音声生成に失敗しました: ' + response.data.error);
@@ -1366,7 +1829,31 @@ function showAudioResult() {
             <i class="fas fa-play"></i>
           </button>
           <div class="flex-1">
-            <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
+            <div class="flex items-center gap-2 mb-1">
+              <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
+              ${segment.type !== 'question' && segment.type !== 'option' ? `
+                ${segment.type === 'narration' || segment.isNarration ? `
+                  <select class="segment-narrator-language-select text-xs px-2 py-0.5 border border-purple-300 rounded bg-purple-50" data-segment-index="${index}">
+                    <option value="en" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+                    <option value="ja" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
+                  </select>
+                ` : `
+                  <select class="segment-speaker-language-select text-xs px-2 py-0.5 border border-blue-300 rounded bg-blue-50" data-segment-index="${index}">
+                    <option value="en" ${(segment.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+                    <option value="ja" ${(segment.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
+                  </select>
+                `}
+                <select class="segment-gender-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
+                  <option value="male" ${(segment.gender || 'male') === 'male' ? 'selected' : ''}>男性</option>
+                  <option value="female" ${(segment.gender || 'male') === 'female' ? 'selected' : ''}>女性</option>
+                </select>
+                <select class="segment-voiceStyle-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
+                  <option value="neutral" ${(segment.voiceStyle || 'neutral') === 'neutral' ? 'selected' : ''}>標準</option>
+                  <option value="warm" ${(segment.voiceStyle || 'neutral') === 'warm' ? 'selected' : ''}>明るい</option>
+                  <option value="calm" ${(segment.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
+                </select>
+              ` : ''}
+            </div>
             <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
             
             <!-- Speed and Pause controls -->
@@ -1418,46 +1905,6 @@ function showAudioResult() {
                     </div>
                   </div>
                   
-                  <!-- Pitch marks -->
-                  <div class="mb-2">
-                    <div class="text-xs text-gray-600 mb-1">🎵 イントネーション:</div>
-                    <div class="flex flex-wrap gap-1">
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↑]">
-                        [↑] 上げ調子
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-xs" data-segment-index="${index}" data-mark="[↓]">
-                        [↓] 下げ調子
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <!-- Emphasis only -->
-                  <div class="mb-2">
-                    <div class="text-xs text-gray-600 mb-1">⚡ 強調:</div>
-                    <div class="flex flex-wrap gap-1">
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-xs" data-segment-index="${index}" data-mark="[強調]">
-                        [強調]
-                      </button>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">💡 速度はスライダーで調整してください</div>
-                  </div>
-                  
-                  <!-- Emotion marks -->
-                  <div class="mb-2">
-                    <div class="text-xs text-gray-600 mb-1">😊 感情表現:</div>
-                    <div class="flex flex-wrap gap-1">
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-pink-100 hover:bg-pink-200 rounded text-xs" data-segment-index="${index}" data-mark="[笑う]">
-                        [笑う] 😄
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-red-100 hover:bg-red-200 rounded text-xs" data-segment-index="${index}" data-mark="[怒る]">
-                        [怒る] 😠
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-purple-100 hover:bg-purple-200 rounded text-xs" data-segment-index="${index}" data-mark="[ワクワク]">
-                        [ワクワク] ✨
-                      </button>
-                    </div>
-                  </div>
-                  
                   <div class="text-xs text-gray-600 mt-2">
                     💡 カーソル位置にマークを挿入します。単語の前後に配置してください。
                   </div>
@@ -1476,9 +1923,6 @@ function showAudioResult() {
                 >${segment.voiceInstructions || segment.text || ''}</textarea>
                 
                 <div class="flex gap-2 mt-2">
-                  <button type="button" class="convert-audio-to-ssml-btn flex-1 bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition" data-segment-index="${index}">
-                    <i class="fas fa-magic mr-1"></i>音声を調整
-                  </button>
                   <button type="button" class="regenerate-audio-btn flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition" data-segment-index="${index}">
                     <i class="fas fa-redo mr-1"></i>音声再生成
                   </button>
@@ -1494,7 +1938,7 @@ function showAudioResult() {
               </div>
             </div>
           </div>
-          <audio class="audio-segment hidden" data-index="${index}" src="data:audio/mp3;base64,${segment.audio}">
+          <audio class="audio-segment hidden" data-index="${index}" data-raw-audio="${segment.audio}">
           </audio>
         </div>
       </div>
@@ -1538,7 +1982,11 @@ function showAudioResult() {
         </div>
       </div>
       
-      <div class="flex gap-4">
+      <div class="flex gap-4 mb-4">
+        <button id="backToReviewFromAudioButton"
+                class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
+          <i class="fas fa-arrow-left mr-2"></i>１つ前に戻る
+        </button>
         <button id="downloadMp3Button"
                 class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
           <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
@@ -1546,6 +1994,13 @@ function showAudioResult() {
         <button id="backToInputFromAudioButton"
                 class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
           <i class="fas fa-home mr-2"></i>最初に戻る
+        </button>
+      </div>
+      
+      <div class="border-t-2 pt-4">
+        <button id="saveToFolderButton"
+                class="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition text-lg">
+          <i class="fas fa-save mr-2"></i>フォルダに保存
         </button>
       </div>
     </div>
@@ -1587,18 +2042,125 @@ function showAudioResult() {
     currentAudioIndex = 0;
   });
   
+  // Initialize audio sources - Google TTS returns MP3
+  const audioElementsOnPage = document.querySelectorAll('.audio-segment');
+  console.log('🎵 Found', audioElementsOnPage.length, 'audio elements');
+  audioElementsOnPage.forEach((audioEl, index) => {
+    const rawAudio = audioEl.dataset.rawAudio;
+    console.log(`🎵 Audio ${index}: data length =`, rawAudio ? rawAudio.length : 0);
+    if (rawAudio && rawAudio.length > 0) {
+      audioEl.src = `data:audio/mp3;base64,${rawAudio}`;
+      console.log(`✅ Audio ${index}: src set, first 50 chars:`, rawAudio.substring(0, 50));
+      // Load the audio to ensure it's ready to play
+      audioEl.load();
+      console.log(`✅ Audio ${index}: load() called`);
+    } else {
+      console.error(`❌ Audio ${index}: no data!`);
+    }
+  });
+
   // Individual segment play buttons
   document.querySelectorAll('.play-segment-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       isPlayingAll = false; // Disable continuous playback for individual play
       const index = parseInt(e.currentTarget.dataset.index);
+      console.log('🎵 Play button clicked, index:', index);
+      console.log('🎵 audioElements length:', audioElements.length);
+      console.log('🎵 Audio element:', audioElements[index]);
+      console.log('🎵 Audio src:', audioElements[index]?.src);
       // Stop all others
       audioElements.forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
       // Play selected segment only
-      audioElements[index].play();
+      if (audioElements[index]) {
+        console.log(`🎵 Attempting to play audio ${index}...`);
+        console.log(`🎵 Audio ready state:`, audioElements[index].readyState);
+        console.log(`🎵 Audio src exists:`, !!audioElements[index].src);
+        console.log(`🎵 Audio duration:`, audioElements[index].duration);
+        
+        audioElements[index].play().then(() => {
+          console.log('✅ Audio playing successfully');
+        }).catch(err => {
+          console.error('❌ Play failed:', err);
+          console.error('❌ Error name:', err.name);
+          console.error('❌ Error message:', err.message);
+        });
+      } else {
+        console.error(`❌ Audio element ${index} not found!`);
+      }
+    });
+  });
+  
+  // Narrator language selector for narration segments
+  document.querySelectorAll('.segment-narrator-language-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const language = e.target.value;
+      currentState.audioSegments[index].narratorLanguage = language;
+      
+      // Update global narrator settings
+      if (!currentState.narratorSettings) currentState.narratorSettings = {};
+      currentState.narratorSettings.language = language;
+      
+      console.log(`ナレーション言語変更: セグメント${index} → ${language}`);
+    });
+  });
+  
+  // Speaker language selector for dialogue segments
+  document.querySelectorAll('.segment-speaker-language-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const language = e.target.value;
+      currentState.audioSegments[index].language = language;
+      
+      // Update speaker info if this segment has a speaker
+      const segment = currentState.audioSegments[index];
+      if (segment.speaker && segment.speaker !== 'Narration') {
+        const speaker = currentState.speakers.find(s => s.name === segment.speaker);
+        if (speaker) {
+          speaker.language = language;
+        }
+      }
+      
+      console.log(`話者言語変更: セグメント${index} → ${language}`);
+    });
+  });
+  
+  // Gender selector for each segment
+  document.querySelectorAll('.segment-gender-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const gender = e.target.value;
+      currentState.audioSegments[index].gender = gender;
+      
+      // Update speaker info if this segment has a speaker
+      const segment = currentState.audioSegments[index];
+      if (segment.speaker && segment.speaker !== 'Narration') {
+        const speaker = currentState.speakers.find(s => s.name === segment.speaker);
+        if (speaker) {
+          speaker.gender = gender;
+        }
+      }
+    });
+  });
+  
+  // Voice style selector for each segment
+  document.querySelectorAll('.segment-voiceStyle-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const voiceStyle = e.target.value;
+      currentState.audioSegments[index].voiceStyle = voiceStyle;
+      
+      // Update speaker info if this segment has a speaker
+      const segment = currentState.audioSegments[index];
+      if (segment.speaker && segment.speaker !== 'Narration') {
+        const speaker = currentState.speakers.find(s => s.name === segment.speaker);
+        if (speaker) {
+          speaker.voiceStyle = voiceStyle;
+        }
+      }
     });
   });
   
@@ -1624,53 +2186,7 @@ function showAudioResult() {
     });
   });
   
-  // Convert natural language to SSML (in audio page)
-  document.querySelectorAll('.convert-audio-to-ssml-btn').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
-      const segment = currentState.audioSegments[index];
-      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
-      const instructions = textarea.value;
-      
-      if (!instructions || !instructions.trim()) {
-        alert('音声指示を入力してください');
-        return;
-      }
-      
-      // Show loading
-      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>変換中...';
-      e.target.disabled = true;
-      
-      try {
-        const response = await axios.post('/api/convert-to-ssml', {
-          text: segment.text,
-          instructions: instructions
-        });
-        
-        if (response.data.success) {
-          // Update segment SSML instructions
-          currentState.audioSegments[index].ssmlInstructions = response.data.ssml;
-          currentState.audioSegments[index].voiceInstructions = instructions;
-          
-          // Show preview
-          const preview = document.querySelector(`.audio-ssml-preview[data-segment-index="${index}"]`);
-          const previewText = preview.querySelector('.audio-ssml-preview-text');
-          previewText.textContent = response.data.ssml;
-          preview.classList.remove('hidden');
-          
-          console.log(`✅ SSML変換完了（音声ページ） - トークン: ${response.data.tokensUsed}, コスト: $${response.data.estimatedCost}`);
-        } else {
-          alert('SSML変換エラー: ' + response.data.error);
-        }
-      } catch (error) {
-        alert('SSML変換中にエラーが発生しました: ' + error.message);
-      } finally {
-        // Restore button
-        e.target.innerHTML = '<i class="fas fa-magic mr-1"></i>音声を調整';
-        e.target.disabled = false;
-      }
-    });
-  });
+  // Note: "Convert to SSML" button removed - users can directly regenerate audio with marks
   
   // Clear voice instructions (in audio page)
   document.querySelectorAll('.clear-audio-instruction-btn').forEach(button => {
@@ -1733,18 +2249,12 @@ function showAudioResult() {
       e.target.disabled = true;
       
       try {
-        // Find speaker settings
-        const speaker = currentState.speakers.find(s => s.name === segment.speaker);
-        if (!speaker) {
-          throw new Error('話者が見つかりません');
-        }
-        
         // ★★★ CRITICAL FIX: Read current textarea value with marks ★★★
         const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
         const currentTextWithMarks = textarea ? textarea.value : segment.text;
         
         // Check if text contains marks that need conversion
-        const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり|笑う|怒る|ワクワク)\]/.test(currentTextWithMarks);
+        const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|速く|ゆっくり)\]/.test(currentTextWithMarks);
         
         let ssmlToUse = segment.ssmlInstructions || '';
         
@@ -1768,10 +2278,83 @@ function showAudioResult() {
           }
         }
         
-        // Apply overall speed to speaker if set
-        const speakerWithSpeed = { ...speaker };
-        if (segment.overallSpeed && segment.overallSpeed !== 1.0) {
-          speakerWithSpeed.speed = segment.overallSpeed;
+        // Find speaker settings (if not narration)
+        let speaker = null;
+        let speakerWithSpeed = null;
+        
+        if (segment.type === 'narration' || segment.isNarration || segment.speaker === 'Narration') {
+          // For narration, create a default speaker with narrator settings
+          // Use segment-specific language if available, otherwise use global narrator settings
+          const narratorLanguage = segment.narratorLanguage || currentState.narratorSettings?.language || 'en';
+          
+          console.log('🎙️ Regenerating narration segment:', {
+            segmentGender: segment.gender,
+            globalGender: currentState.narratorSettings?.gender,
+            narratorLanguage: narratorLanguage,
+            segmentVoiceStyle: segment.voiceStyle
+          });
+          
+          speaker = {
+            name: 'Narration',
+            language: narratorLanguage,  // ← CRITICAL: Added language field
+            accent: currentState.narratorSettings?.accent || 'US',
+            gender: segment.gender || currentState.narratorSettings?.gender || 'male',
+            voiceStyle: segment.voiceStyle || currentState.narratorSettings?.voiceStyle || 'neutral',
+            speed: segment.overallSpeed || 1.0
+          };
+          speakerWithSpeed = speaker;
+          
+          console.log('🎯 Final narrator speaker config:', speakerWithSpeed);
+          
+          // Update narrator settings with current segment language
+          if (!currentState.narratorSettings) currentState.narratorSettings = {};
+          currentState.narratorSettings.language = narratorLanguage;
+          currentState.narratorSettings.gender = speaker.gender;  // ← Also update gender
+          currentState.narratorSettings.voiceStyle = speaker.voiceStyle;  // ← Also update voiceStyle
+        } else {
+          // For dialogue, find the speaker
+          console.log('DEBUG: Looking for speaker:', segment.speaker);
+          console.log('DEBUG: Available speakers:', currentState.speakers);
+          
+          speaker = currentState.speakers.find(s => s.name === segment.speaker);
+          if (!speaker) {
+            console.error('話者が見つかりません。Segment speaker:', segment.speaker, 'Available:', currentState.speakers.map(s => s.name));
+            throw new Error(`話者が見つかりません: ${segment.speaker}`);
+          }
+          
+          // Apply segment-specific settings (gender, voiceStyle, speed) if changed
+          speakerWithSpeed = { ...speaker };
+          
+          // Use segment-specific gender if set (from UI selector)
+          if (segment.gender) {
+            speakerWithSpeed.gender = segment.gender;
+            console.log(`✏️ Using segment-specific gender: ${segment.gender}`);
+          }
+          
+          // Use segment-specific voiceStyle if set (from UI selector)
+          if (segment.voiceStyle) {
+            speakerWithSpeed.voiceStyle = segment.voiceStyle;
+            console.log(`✏️ Using segment-specific voiceStyle: ${segment.voiceStyle}`);
+          }
+          
+          // Use segment-specific language if set (from UI selector)
+          if (segment.language) {
+            speakerWithSpeed.language = segment.language;
+            console.log(`✏️ Using segment-specific language: ${segment.language}`);
+          }
+          
+          // Use segment-specific accent if set (from UI selector)
+          if (segment.accent) {
+            speakerWithSpeed.accent = segment.accent;
+            console.log(`✏️ Using segment-specific accent: ${segment.accent}`);
+          }
+          
+          // Apply overall speed to speaker if set
+          if (segment.overallSpeed && segment.overallSpeed !== 1.0) {
+            speakerWithSpeed.speed = segment.overallSpeed;
+          }
+          
+          console.log('🎤 Final speaker config for regeneration:', speakerWithSpeed);
         }
         
         // Prepare parsedLine for single segment regeneration
@@ -1779,6 +2362,7 @@ function showAudioResult() {
           speaker: segment.speaker,
           text: segment.text,
           type: segment.type || 'dialogue',
+          isNarration: segment.type === 'narration' || segment.isNarration,
           pauseAfter: segment.pauseAfter || 0.5,
           ssmlInstructions: ssmlToUse,
           voiceInstructions: currentTextWithMarks
@@ -1788,6 +2372,7 @@ function showAudioResult() {
         const response = await axios.post('/api/generate-audio', {
           script: segment.text,
           speakers: [speakerWithSpeed],
+          narratorSettings: currentState.narratorSettings,
           parsedLines: [parsedLine],
           questions: [],
           questionReader: null,
@@ -1802,6 +2387,7 @@ function showAudioResult() {
           // Update audio element
           const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
           audioElement.src = `data:audio/mp3;base64,${newAudio}`;
+          audioElement.dataset.rawAudio = newAudio;
           audioElement.load();
           
           // Play the new audio
@@ -1861,6 +2447,17 @@ function showAudioResult() {
       currentState.audioSegments[index].pauseAfter = pauseValue;
       console.log(`ブランク更新: セグメント${index} → ${pauseValue}秒`);
     });
+  });
+  
+  // Save to folder button
+  document.getElementById('saveToFolderButton').addEventListener('click', async () => {
+    await showSaveToFolderDialog();
+  });
+  
+  // Back to review screen button
+  document.getElementById('backToReviewFromAudioButton').addEventListener('click', () => {
+    currentState.screen = 'review';
+    renderScreen();
   });
   
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
@@ -2221,6 +2818,567 @@ window.editUser = function(userId) {
 };
 
 window.deleteUser = deleteUser;
+
+// ============================================
+// Menu Screen (after login)
+// ============================================
+
+function renderMenuScreen() {
+  return `
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 -m-8">
+      <div class="bg-white rounded-2xl shadow-2xl p-12 w-full max-w-2xl fade-in">
+        <div class="text-center mb-8">
+          <div class="inline-block bg-indigo-600 rounded-full p-4 mb-4">
+            <i class="fas fa-headphones text-white text-4xl"></i>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">
+            リスニングテスト自動作成システム
+          </h1>
+          <p class="text-gray-600 text-sm">
+            メニューを選択してください
+          </p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Create New Test -->
+          <button id="createTestButton" class="group relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
+            <div class="relative z-10">
+              <i class="fas fa-plus-circle text-5xl mb-4"></i>
+              <h2 class="text-2xl font-bold mb-2">新規作成</h2>
+              <p class="text-sm opacity-90">リスニングテストを作成</p>
+            </div>
+            <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+          </button>
+          
+          <!-- Access Folders -->
+          <button id="accessFoldersButton" class="group relative overflow-hidden bg-gradient-to-br from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white rounded-xl p-8 transition-all duration-300 transform hover:scale-105 hover:shadow-xl">
+            <div class="relative z-10">
+              <i class="fas fa-folder-open text-5xl mb-4"></i>
+              <h2 class="text-2xl font-bold mb-2">フォルダ管理</h2>
+              <p class="text-sm opacity-90">保存済みテストを閲覧</p>
+            </div>
+            <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachMenuScreenListeners() {
+  const createTestButton = document.getElementById('createTestButton');
+  const accessFoldersButton = document.getElementById('accessFoldersButton');
+  
+  if (createTestButton) {
+    createTestButton.addEventListener('click', () => {
+      currentState.screen = 'input';
+      renderScreen();
+    });
+  }
+  
+  if (accessFoldersButton) {
+    accessFoldersButton.addEventListener('click', () => {
+      currentState.screen = 'folders';
+      renderScreen();
+    });
+  }
+}
+
+// ============================================
+// Folders Screen
+// ============================================
+
+async function renderFoldersScreen() {
+  const appContainer = document.getElementById('app');
+  
+  appContainer.innerHTML = `
+    <div class="max-w-6xl mx-auto p-8 fade-in">
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center">
+          <button id="backToMenuButton" class="mr-4 text-gray-600 hover:text-indigo-600 transition">
+            <i class="fas fa-arrow-left text-2xl"></i>
+          </button>
+          <h1 class="text-3xl font-bold text-gray-800">
+            <i class="fas fa-folder text-indigo-600 mr-3"></i>フォルダ管理
+          </h1>
+        </div>
+        <button id="createFolderButton" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition flex items-center">
+          <i class="fas fa-plus mr-2"></i>新規フォルダ
+        </button>
+      </div>
+      
+      <div id="foldersContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="text-center py-12 col-span-full">
+          <i class="fas fa-spinner fa-spin text-4xl text-indigo-600 mb-4"></i>
+          <p class="text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Attach listeners
+  document.getElementById('backToMenuButton').addEventListener('click', () => {
+    currentState.screen = 'menu';
+    renderScreen();
+  });
+  
+  document.getElementById('createFolderButton').addEventListener('click', () => {
+    createNewFolder();
+  });
+  
+  // Load folders
+  await loadFolders();
+}
+
+async function loadFolders() {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get('/api/folders', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      const folders = response.data.folders;
+      const foldersContainer = document.getElementById('foldersContainer');
+      
+      if (folders.length === 0) {
+        foldersContainer.innerHTML = `
+          <div class="col-span-full text-center py-12">
+            <i class="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-600 text-lg">フォルダがありません</p>
+            <p class="text-gray-500 text-sm mt-2">「新規フォルダ」ボタンから作成してください</p>
+          </div>
+        `;
+      } else {
+        foldersContainer.innerHTML = folders.map(folder => `
+          <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 cursor-pointer" onclick="openFolder(${folder.id}, '${folder.name.replace(/'/g, "\\'")}')">
+            <div class="flex items-start justify-between mb-4">
+              <div class="bg-indigo-100 rounded-lg p-3">
+                <i class="fas fa-folder text-indigo-600 text-3xl"></i>
+              </div>
+              <div class="flex space-x-2">
+                <button onclick="event.stopPropagation(); renameFolderPrompt(${folder.id}, '${folder.name.replace(/'/g, "\\'")}');" class="text-gray-400 hover:text-blue-600 transition">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="event.stopPropagation(); deleteFolderPrompt(${folder.id}, '${folder.name.replace(/'/g, "\\'")}');" class="text-gray-400 hover:text-red-600 transition">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">${folder.name}</h3>
+            <p class="text-sm text-gray-500">
+              <i class="far fa-calendar-alt mr-2"></i>${new Date(folder.created_at).toLocaleDateString('ja-JP')}
+            </p>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (error) {
+    console.error('Load folders error:', error);
+    const foldersContainer = document.getElementById('foldersContainer');
+    foldersContainer.innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+        <p class="text-red-600">フォルダの読み込みに失敗しました</p>
+      </div>
+    `;
+  }
+}
+
+async function createNewFolder() {
+  const folderName = prompt('新しいフォルダの名前を入力してください:');
+  
+  if (!folderName || folderName.trim() === '') {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.post('/api/folders', {
+      name: folderName.trim()
+    }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      await loadFolders();
+    } else {
+      alert(response.data.error || 'フォルダの作成に失敗しました');
+    }
+  } catch (error) {
+    console.error('Create folder error:', error);
+    alert(error.response?.data?.error || 'フォルダの作成に失敗しました');
+  }
+}
+
+async function renameFolderPrompt(folderId, currentName) {
+  const newName = prompt('新しいフォルダ名を入力してください:', currentName);
+  
+  if (!newName || newName.trim() === '' || newName === currentName) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.put(`/api/folders/${folderId}`, {
+      name: newName.trim()
+    }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      await loadFolders();
+    } else {
+      alert(response.data.error || 'フォルダ名の変更に失敗しました');
+    }
+  } catch (error) {
+    console.error('Rename folder error:', error);
+    alert(error.response?.data?.error || 'フォルダ名の変更に失敗しました');
+  }
+}
+
+async function deleteFolderPrompt(folderId, folderName) {
+  if (!confirm(`フォルダ「${folderName}」を削除してもよろしいですか？\n\nフォルダ内のすべてのリスニングテストも削除されます。\nこの操作は取り消せません。`)) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.delete(`/api/folders/${folderId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      await loadFolders();
+    } else {
+      alert(response.data.error || 'フォルダの削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Delete folder error:', error);
+    alert(error.response?.data?.error || 'フォルダの削除に失敗しました');
+  }
+}
+
+window.openFolder = function(folderId, folderName) {
+  currentState.currentFolderId = folderId;
+  currentState.currentFolderName = folderName;
+  currentState.screen = 'folderView';
+  renderScreen();
+};
+
+window.renameFolderPrompt = renameFolderPrompt;
+window.deleteFolderPrompt = deleteFolderPrompt;
+
+// ============================================
+// Folder View Screen (List of tests in folder)
+// ============================================
+
+async function renderFolderViewScreen() {
+  const appContainer = document.getElementById('app');
+  
+  appContainer.innerHTML = `
+    <div class="max-w-6xl mx-auto p-8 fade-in">
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center">
+          <button id="backToFoldersButton" class="mr-4 text-gray-600 hover:text-indigo-600 transition">
+            <i class="fas fa-arrow-left text-2xl"></i>
+          </button>
+          <h1 class="text-3xl font-bold text-gray-800">
+            <i class="fas fa-folder-open text-indigo-600 mr-3"></i>${currentState.currentFolderName}
+          </h1>
+        </div>
+      </div>
+      
+      <div id="testsContainer" class="space-y-4">
+        <div class="text-center py-12">
+          <i class="fas fa-spinner fa-spin text-4xl text-indigo-600 mb-4"></i>
+          <p class="text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Attach listeners
+  document.getElementById('backToFoldersButton').addEventListener('click', () => {
+    currentState.screen = 'folders';
+    renderScreen();
+  });
+  
+  // Load tests
+  await loadTestsInFolder();
+}
+
+async function loadTestsInFolder() {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get(`/api/folders/${currentState.currentFolderId}/tests`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      const tests = response.data.tests;
+      const testsContainer = document.getElementById('testsContainer');
+      
+      if (tests.length === 0) {
+        testsContainer.innerHTML = `
+          <div class="text-center py-12 bg-white rounded-xl shadow">
+            <i class="fas fa-file-audio text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-600 text-lg">このフォルダには保存されたテストがありません</p>
+          </div>
+        `;
+      } else {
+        testsContainer.innerHTML = tests.map(test => {
+          const audioUrl = `/api/tests/${test.id}/audio`;
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + audioUrl)}`;
+          
+          return `
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center mb-3">
+                    <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-3 py-1 rounded-full mr-2">
+                      ${test.format === 'monologue' ? 'モノローグ' : 'ダイアローグ'}
+                    </span>
+                    <span class="bg-purple-100 text-purple-800 text-xs font-semibold px-3 py-1 rounded-full">
+                      ${test.cefr_level}
+                    </span>
+                  </div>
+                  <h3 class="text-xl font-bold text-gray-800 mb-2">${test.title}</h3>
+                  <p class="text-gray-600 mb-3">${test.topic || ''}</p>
+                  ${test.keywords ? `<p class="text-sm text-gray-500 mb-3"><i class="fas fa-tags mr-2"></i>${test.keywords}</p>` : ''}
+                  <p class="text-sm text-gray-500">
+                    <i class="far fa-calendar-alt mr-2"></i>${new Date(test.created_at).toLocaleString('ja-JP')}
+                  </p>
+                </div>
+                
+                <div class="flex flex-col items-center space-y-3 ml-6">
+                  <!-- QR Code -->
+                  <div class="bg-gray-50 p-2 rounded-lg">
+                    <img src="${qrCodeUrl}" alt="QR Code" class="w-24 h-24" title="音声ファイルのQRコード">
+                  </div>
+                  
+                  <!-- Action Buttons -->
+                  <div class="flex space-x-2">
+                    <a href="${audioUrl}" download="${test.title}.mp3" class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition" title="音声をダウンロード">
+                      <i class="fas fa-download"></i>
+                    </a>
+                    <button onclick="playAudio(${test.id}, '${test.title.replace(/'/g, "\\'")}');" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg transition" title="音声を再生">
+                      <i class="fas fa-play"></i>
+                    </button>
+                    <button onclick="downloadQRCode('${qrCodeUrl}', '${test.title.replace(/'/g, "\\'")}');" class="bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-lg transition" title="QRコードをダウンロード">
+                      <i class="fas fa-qrcode"></i>
+                    </button>
+                    <button onclick="deleteTestPrompt(${test.id}, '${test.title.replace(/'/g, "\\'")}');" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition" title="削除">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (error) {
+    console.error('Load tests error:', error);
+    const testsContainer = document.getElementById('testsContainer');
+    testsContainer.innerHTML = `
+      <div class="text-center py-12 bg-white rounded-xl shadow">
+        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+        <p class="text-red-600">テストの読み込みに失敗しました</p>
+      </div>
+    `;
+  }
+}
+
+window.playAudio = function(testId, title) {
+  const audioUrl = `/api/tests/${testId}/audio`;
+  const audio = new Audio(audioUrl);
+  audio.play();
+  
+  // Show notification
+  alert(`「${title}」を再生します`);
+};
+
+window.downloadQRCode = async function(qrCodeUrl, title) {
+  try {
+    const response = await fetch(qrCodeUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}_QR.png`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Download QR code error:', error);
+    alert('QRコードのダウンロードに失敗しました');
+  }
+};
+
+async function deleteTestPrompt(testId, title) {
+  if (!confirm(`リスニングテスト「${title}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await axios.delete(`/api/tests/${testId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.data.success) {
+      await loadTestsInFolder();
+    } else {
+      alert(response.data.error || 'テストの削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Delete test error:', error);
+    alert(error.response?.data?.error || 'テストの削除に失敗しました');
+  }
+}
+
+window.deleteTestPrompt = deleteTestPrompt;
+
+// ============================================
+// Save to Folder Dialog
+// ============================================
+
+async function showSaveToFolderDialog() {
+  try {
+    // Get all folders
+    const token = localStorage.getItem('authToken');
+    const response = await axios.get('/api/folders', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.data.success) {
+      alert('フォルダの取得に失敗しました');
+      return;
+    }
+    
+    const folders = response.data.folders;
+    
+    if (folders.length === 0) {
+      // No folders - create one first
+      if (confirm('フォルダがありません。新しいフォルダを作成しますか？')) {
+        const folderName = prompt('フォルダ名を入力してください:');
+        if (!folderName || folderName.trim() === '') {
+          return;
+        }
+        
+        const createResponse = await axios.post('/api/folders', {
+          name: folderName.trim()
+        }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (createResponse.data.success) {
+          // Use the newly created folder
+          await saveTestToFolder(createResponse.data.folder_id);
+        } else {
+          alert(createResponse.data.error || 'フォルダの作成に失敗しました');
+        }
+      }
+      return;
+    }
+    
+    // Show folder selection dialog
+    const folderOptions = folders.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+    const selection = prompt(
+      `保存先のフォルダを選択してください:\n\n${folderOptions}\n\n番号を入力してください (1-${folders.length}):`
+    );
+    
+    if (!selection) {
+      return;
+    }
+    
+    const selectedIndex = parseInt(selection) - 1;
+    if (selectedIndex < 0 || selectedIndex >= folders.length) {
+      alert('無効な選択です');
+      return;
+    }
+    
+    const selectedFolder = folders[selectedIndex];
+    await saveTestToFolder(selectedFolder.id);
+    
+  } catch (error) {
+    console.error('Show save dialog error:', error);
+    alert('フォルダ情報の取得に失敗しました');
+  }
+}
+
+async function saveTestToFolder(folderId) {
+  try {
+    // Ask for test title
+    const defaultTitle = currentState.formData.topic || 'リスニングテスト';
+    const title = prompt('テストのタイトルを入力してください:', defaultTitle);
+    
+    if (!title || title.trim() === '') {
+      return;
+    }
+    
+    // Merge audio segments into single base64 string
+    const btn = document.getElementById('saveToFolderButton');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...';
+    
+    try {
+      // Call API to merge audio segments
+      const mergeResponse = await axios.post('/api/merge-audio', {
+        audioSegments: currentState.audioSegments
+      }, { responseType: 'blob' });
+      
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(mergeResponse.data);
+      
+      reader.onloadend = async () => {
+        const base64Audio = reader.result;
+        
+        // Save to database
+        const token = localStorage.getItem('authToken');
+        const saveResponse = await axios.post('/api/tests', {
+          folder_id: folderId,
+          title: title.trim(),
+          topic: currentState.formData.topic || '',
+          format: currentState.formData.format,
+          cefr_level: currentState.formData.cefrLevel,
+          keywords: currentState.formData.keywords || '',
+          script: currentState.generatedScript,
+          questions: currentState.generatedQuestions,
+          audio_settings: {
+            speakers: currentState.speakers,
+            questionReader: currentState.questionReader || null
+          },
+          audio_data: base64Audio
+        }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (saveResponse.data.success) {
+          alert('保存しました！フォルダから確認できます。');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
+        } else {
+          throw new Error(saveResponse.data.error || '保存に失敗しました');
+        }
+      };
+      
+    } catch (error) {
+      console.error('Save test error:', error);
+      alert(error.response?.data?.error || '保存に失敗しました');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
+    }
+    
+  } catch (error) {
+    console.error('Save test error:', error);
+    alert('保存に失敗しました');
+  }
+}
 
 // Start the app
 init();

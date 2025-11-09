@@ -132,7 +132,7 @@ app.post('/api/verify-token', async (c) => {
 app.post('/api/generate-script-ai', async (c) => {
   try {
     const body = await c.req.json()
-    const { format, topic, keywords, cefrLevel, otherConditions, numSpeakers, speakerNationalities, isLong } = body
+    const { format, topic, keywords, cefrLevel, otherConditions, numSpeakers, speakerNationalities, speakerSettings, isLong } = body
     
     const OPENAI_API_KEY = c.env?.OPENAI_API_KEY
     
@@ -147,6 +147,8 @@ app.post('/api/generate-script-ai', async (c) => {
     let prompt = ''
     
     if (format === 'monologue') {
+      const speakerGender = speakerSettings?.[0]?.gender || 'male'
+      const genderExample = speakerGender === 'female' ? 'Sarah' : 'James'
       prompt = `You are an English listening test creator for ${cefrLevel} level students.
 
 Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} monologue about "${topic}".
@@ -156,18 +158,31 @@ Requirements:
 - Must include these keywords naturally: ${keywords}
 ${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
 - Format: [Speaker Name] followed by the speech content
-- Use a single English name for the speaker (e.g., James, Sarah)
+- Use a single English ${speakerGender === 'female' ? 'female' : 'male'} name for the speaker (e.g., ${genderExample})
 - Write in pure English only (no Japanese)
 - Make it natural and conversational
 
 Example format:
-[James]
+[${genderExample}]
 
 Hello, everyone. Today I want to discuss...
 
 (Continue the speech naturally)`
     } else {
-      // Dialogue
+      // Dialogue - generate names based on speaker genders
+      const speakerGenders = speakerSettings?.map((s: any) => s.gender || 'male') || []
+      const exampleNames = speakerGenders.map((gender: string, i: number) => {
+        if (gender === 'female') {
+          return ['Alice', 'Sarah', 'Emma', 'Lisa', 'Mary'][i] || 'Jane'
+        } else {
+          return ['Bob', 'James', 'John', 'Michael', 'David'][i] || 'Tom'
+        }
+      })
+      
+      const speakerGenderInstructions = speakerGenders.map((gender: string, i: number) => 
+        `Speaker ${i + 1}: ${gender === 'female' ? 'female' : 'male'} name`
+      ).join(', ')
+      
       prompt = `You are an English listening test creator for ${cefrLevel} level students.
 
 Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} dialogue between ${numSpeakers} people about "${topic}".
@@ -175,22 +190,23 @@ Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} dialogu
 Requirements:
 - CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)
 - Number of speakers: ${numSpeakers}
+- Speaker genders: ${speakerGenderInstructions}
 - Must include these keywords naturally: ${keywords}
 ${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
 - Format: [Conversation between Name1, Name2${numSpeakers >= 3 ? ', Name3' : ''}] followed by dialogue lines
-- Use English names for speakers
+- Use appropriate English names matching the specified genders
 - Format each line as "Name: dialogue text"
 - Write in pure English only (no Japanese)
 - Make it natural and conversational
 
 Example format:
-[Conversation between Alice, Bob${numSpeakers >= 3 ? ', Charlie' : ''}]
+[Conversation between ${exampleNames.join(', ')}]
 
-Alice: Have you heard about...
+${exampleNames[0]}: Have you heard about...
 
-Bob: Yes, I think...
+${exampleNames[1]}: Yes, I think...
 
-${numSpeakers >= 3 ? 'Charlie: I agree, and...\n\n' : ''}(Continue the conversation naturally)`
+${numSpeakers >= 3 ? `${exampleNames[2]}: I agree, and...\n\n` : ''}(Continue the conversation naturally)`
     }
     
     // Call OpenAI API
@@ -379,46 +395,26 @@ app.post('/api/convert-to-ssml', async (c) => {
     }
     
     // Check if instructions contain marks (simple pattern-based conversion)
-    const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|↑|↓|強調|速く|ゆっくり|笑う|怒る|ワクワク)\]/.test(instructions)
+    const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|速く|ゆっくり)\]/.test(instructions)
     
     if (hasMarks) {
       // Direct mark-to-SSML conversion without AI
       let convertedText = instructions
       
-      // STEP 1: Convert emotion marks first (these affect larger sections)
-      // Emotions use prosody with combined pitch, rate, and volume adjustments
-      convertedText = convertedText.replace(/\[笑う\]\s*([^[\]]+?)\s*\[\/笑う\]/g, '<prosody pitch="+20%" rate="110%" volume="+3dB">$1</prosody>')
-      convertedText = convertedText.replace(/\[怒る\]\s*([^[\]]+?)\s*\[\/怒る\]/g, '<prosody pitch="-10%" rate="120%" volume="+6dB"><emphasis level="strong">$1</emphasis></prosody>')
-      convertedText = convertedText.replace(/\[ワクワク\]\s*([^[\]]+?)\s*\[\/ワクワク\]/g, '<prosody pitch="+25%" rate="115%" volume="+2dB">$1</prosody>')
-      // Auto-close if no closing tag found
-      convertedText = convertedText.replace(/\[笑う\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+20%" rate="110%" volume="+3dB">$1</prosody>')
-      convertedText = convertedText.replace(/\[怒る\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-10%" rate="120%" volume="+6dB"><emphasis level="strong">$1</emphasis></prosody>')
-      convertedText = convertedText.replace(/\[ワクワク\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+25%" rate="115%" volume="+2dB">$1</prosody>')
-      
-      // STEP 2: Convert emphasis marks (with closing tags)
-      convertedText = convertedText.replace(/\[強調\]\s*([^[\]]+?)\s*\[\/強調\]/g, '<emphasis level="strong">$1</emphasis>')
-      // Auto-close if no closing tag found - match until next mark or punctuation
-      convertedText = convertedText.replace(/\[強調\]\s*([^[\]。、！？\.,!?\n]+)/g, '<emphasis level="strong">$1</emphasis>')
-      
-      // STEP 3: Convert speed marks (with closing tags)
+      // STEP 1: Convert speed marks (with closing tags)
       convertedText = convertedText.replace(/\[速く\]\s*([^[\]]+?)\s*\[\/速く\]/g, '<prosody rate="140%">$1</prosody>')
       convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]]+?)\s*\[\/ゆっくり\]/g, '<prosody rate="75%">$1</prosody>')
       // Auto-close if no closing tag found
       convertedText = convertedText.replace(/\[速く\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="140%">$1</prosody>')
       convertedText = convertedText.replace(/\[ゆっくり\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody rate="75%">$1</prosody>')
       
-      // STEP 4: Convert pitch marks - wrap next word/phrase until next mark or punctuation
-      // Increased from +/-15% to +/-30% for more noticeable effect
-      convertedText = convertedText.replace(/\[↑\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="+30%">$1</prosody>')
-      convertedText = convertedText.replace(/\[↓\]\s*([^[\]。、！？\.,!?\n]+)/g, '<prosody pitch="-30%">$1</prosody>')
-      
-      // STEP 5: Convert pause marks last (they don't interfere with other tags)
+      // STEP 2: Convert pause marks last (they don't interfere with other tags)
       convertedText = convertedText.replace(/\[0\.2秒間\]/g, '<break time="0.2s"/>')
       convertedText = convertedText.replace(/\[0\.5秒間\]/g, '<break time="0.5s"/>')
       convertedText = convertedText.replace(/\[1秒間\]/g, '<break time="1s"/>')
       convertedText = convertedText.replace(/\[2秒間\]/g, '<break time="2s"/>')
       
-      // STEP 6: Fix consecutive breaks (Google TTS doesn't support this)
+      // STEP 3: Fix consecutive breaks (Google TTS doesn't support this)
       // Replace multiple consecutive breaks with a single break of summed duration
       convertedText = convertedText.replace(/<break time="0\.2s"\/>\s*<break time="0\.2s"\/>/g, '<break time="0.4s"/>')
       convertedText = convertedText.replace(/<break time="0\.2s"\/>\s*<break time="0\.5s"\/>/g, '<break time="0.7s"/>')
@@ -432,10 +428,8 @@ app.post('/api/convert-to-ssml', async (c) => {
       convertedText = convertedText.replace(/(<break time="[^"]+"\/>[\s]*){3,}/g, '<break time="3s"/>')
       
       // Remove any remaining closing marks that weren't matched
-      convertedText = convertedText.replace(/\[\/強調\]/g, '')
       convertedText = convertedText.replace(/\[\/速く\]/g, '')
       convertedText = convertedText.replace(/\[\/ゆっくり\]/g, '')
-      convertedText = convertedText.replace(/\[\/笑う\]/g, '')
       convertedText = convertedText.replace(/\[\/怒る\]/g, '')
       convertedText = convertedText.replace(/\[\/ワクワク\]/g, '')
       
@@ -654,94 +648,263 @@ const convertEmotionToPrompt = (text: string, voiceInstructions?: string): strin
 
 // Google TTS voice mapping with gender support
 // Returns { standard: ..., ssml: ... } where ssml is SSML-compatible voice
-const getGoogleTTSVoice = (accent: string, gender: string = 'male') => {
-  const voiceMap: Record<string, Record<string, { languageCode: string, standard: string, ssml: string }>> = {
+const getGoogleTTSVoice = (accent: string, gender: string = 'male', voiceStyle: string = 'neutral') => {
+  // voiceStyle: 'neutral' (standard), 'warm' (friendly/bright), 'calm' (professional/deep)
+  const voiceMap: Record<string, Record<string, Record<string, { languageCode: string, standard: string, ssml: string }>>> = {
     'US': {
-      'male': { 
-        languageCode: 'en-US', 
-        standard: 'en-US-Journey-D',  // Journey for plain text (best quality)
-        ssml: 'en-US-Wavenet-D'        // WaveNet for SSML (SSML-compatible)
+      'male': {
+        'neutral': { 
+          languageCode: 'en-US', 
+          standard: 'en-US-Journey-D',  // Journey for plain text (best quality)
+          ssml: 'en-US-Wavenet-D'        // WaveNet for SSML (SSML-compatible)
+        },
+        'warm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-D',
+          ssml: 'en-US-Wavenet-A'  // Brighter, friendlier tone
+        },
+        'calm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-D',
+          ssml: 'en-US-Wavenet-B'  // Deeper, more professional
+        }
       },
-      'female': { 
-        languageCode: 'en-US', 
-        standard: 'en-US-Journey-F', 
-        ssml: 'en-US-Wavenet-F' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-US', 
+          standard: 'en-US-Journey-F', 
+          ssml: 'en-US-Wavenet-F' 
+        },
+        'warm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-F',
+          ssml: 'en-US-Wavenet-C'  // Brighter, friendlier tone
+        },
+        'calm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-F',
+          ssml: 'en-US-Wavenet-E'  // Calmer, more professional
+        }
       }
     },
     'UK': {
-      'male': { 
-        languageCode: 'en-GB', 
-        standard: 'en-GB-Journey-D', 
-        ssml: 'en-GB-Wavenet-D' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Journey-D', 
+          ssml: 'en-GB-Wavenet-D' 
+        },
+        'warm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-B'
+        },
+        'calm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-D'
+        }
       },
-      'female': { 
-        languageCode: 'en-GB', 
-        standard: 'en-GB-Journey-F', 
-        ssml: 'en-GB-Wavenet-F' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Journey-F', 
+          ssml: 'en-GB-Wavenet-F' 
+        },
+        'warm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-A'
+        },
+        'calm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-C'
+        }
       }
     },
     'Australian': {
-      'male': { 
-        languageCode: 'en-AU', 
-        standard: 'en-AU-Journey-D', 
-        ssml: 'en-AU-Wavenet-B' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-AU', 
+          standard: 'en-AU-Journey-D', 
+          ssml: 'en-AU-Wavenet-B' 
+        },
+        'warm': {
+          languageCode: 'en-AU',
+          standard: 'en-AU-Journey-D',
+          ssml: 'en-AU-Wavenet-D'
+        },
+        'calm': {
+          languageCode: 'en-AU',
+          standard: 'en-AU-Journey-D',
+          ssml: 'en-AU-Wavenet-B'
+        }
       },
-      'female': { 
-        languageCode: 'en-AU', 
-        standard: 'en-AU-Journey-F', 
-        ssml: 'en-AU-Wavenet-A' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-AU', 
+          standard: 'en-AU-Journey-F', 
+          ssml: 'en-AU-Wavenet-A' 
+        },
+        'warm': {
+          languageCode: 'en-AU',
+          standard: 'en-AU-Journey-F',
+          ssml: 'en-AU-Wavenet-C'
+        },
+        'calm': {
+          languageCode: 'en-AU',
+          standard: 'en-AU-Journey-F',
+          ssml: 'en-AU-Wavenet-A'
+        }
       }
     },
     'Canadian': {
-      'male': { 
-        languageCode: 'en-US', 
-        standard: 'en-US-Journey-D', 
-        ssml: 'en-US-Wavenet-D' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-US', 
+          standard: 'en-US-Journey-D', 
+          ssml: 'en-US-Wavenet-D' 
+        },
+        'warm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-D',
+          ssml: 'en-US-Wavenet-A'
+        },
+        'calm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-D',
+          ssml: 'en-US-Wavenet-B'
+        }
       },
-      'female': { 
-        languageCode: 'en-US', 
-        standard: 'en-US-Journey-F', 
-        ssml: 'en-US-Wavenet-F' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-US', 
+          standard: 'en-US-Journey-F', 
+          ssml: 'en-US-Wavenet-F' 
+        },
+        'warm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-F',
+          ssml: 'en-US-Wavenet-C'
+        },
+        'calm': {
+          languageCode: 'en-US',
+          standard: 'en-US-Journey-F',
+          ssml: 'en-US-Wavenet-E'
+        }
       }
     },
     'Indian': {
-      'male': { 
-        languageCode: 'en-IN', 
-        standard: 'en-IN-Journey-D', 
-        ssml: 'en-IN-Wavenet-B' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-IN', 
+          standard: 'en-IN-Journey-D', 
+          ssml: 'en-IN-Wavenet-B' 
+        },
+        'warm': {
+          languageCode: 'en-IN',
+          standard: 'en-IN-Journey-D',
+          ssml: 'en-IN-Wavenet-C'
+        },
+        'calm': {
+          languageCode: 'en-IN',
+          standard: 'en-IN-Journey-D',
+          ssml: 'en-IN-Wavenet-D'
+        }
       },
-      'female': { 
-        languageCode: 'en-IN', 
-        standard: 'en-IN-Journey-F', 
-        ssml: 'en-IN-Wavenet-A' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-IN', 
+          standard: 'en-IN-Journey-F', 
+          ssml: 'en-IN-Wavenet-A' 
+        },
+        'warm': {
+          languageCode: 'en-IN',
+          standard: 'en-IN-Journey-F',
+          ssml: 'en-IN-Wavenet-D'
+        },
+        'calm': {
+          languageCode: 'en-IN',
+          standard: 'en-IN-Journey-F',
+          ssml: 'en-IN-Wavenet-A'
+        }
       }
     },
     'Irish': {
-      'male': { 
-        languageCode: 'en-IE', 
-        standard: 'en-IE-Standard-A', 
-        ssml: 'en-IE-Standard-A' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-IE', 
+          standard: 'en-IE-Standard-A', 
+          ssml: 'en-IE-Standard-A' 
+        },
+        'warm': {
+          languageCode: 'en-IE',
+          standard: 'en-IE-Standard-A',
+          ssml: 'en-IE-Standard-A'
+        },
+        'calm': {
+          languageCode: 'en-IE',
+          standard: 'en-IE-Standard-A',
+          ssml: 'en-IE-Standard-A'
+        }
       },
-      'female': { 
-        languageCode: 'en-IE', 
-        standard: 'en-IE-Standard-A', 
-        ssml: 'en-IE-Standard-A' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-IE', 
+          standard: 'en-IE-Standard-A', 
+          ssml: 'en-IE-Standard-A' 
+        },
+        'warm': {
+          languageCode: 'en-IE',
+          standard: 'en-IE-Standard-A',
+          ssml: 'en-IE-Standard-A'
+        },
+        'calm': {
+          languageCode: 'en-IE',
+          standard: 'en-IE-Standard-A',
+          ssml: 'en-IE-Standard-A'
+        }
       }
     },
     'Scottish': {
-      'male': { 
-        languageCode: 'en-GB', 
-        standard: 'en-GB-Standard-B', 
-        ssml: 'en-GB-Standard-B' 
+      'male': {
+        'neutral': { 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Standard-B', 
+          ssml: 'en-GB-Standard-B' 
+        },
+        'warm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Standard-B',
+          ssml: 'en-GB-Standard-B'
+        },
+        'calm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Standard-B',
+          ssml: 'en-GB-Standard-B'
+        }
       },
-      'female': { 
-        languageCode: 'en-GB', 
-        standard: 'en-GB-Standard-A', 
-        ssml: 'en-GB-Standard-A' 
+      'female': {
+        'neutral': { 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Standard-A', 
+          ssml: 'en-GB-Standard-A' 
+        },
+        'warm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Standard-A',
+          ssml: 'en-GB-Standard-A'
+        },
+        'calm': {
+          languageCode: 'en-GB',
+          standard: 'en-GB-Standard-A',
+          ssml: 'en-GB-Standard-A'
+        }
       }
     }
   }
-  return voiceMap[accent]?.[gender] || voiceMap['US']['male']
+  return voiceMap[accent]?.[gender]?.[voiceStyle] || voiceMap['US']?.['male']?.['neutral'] || voiceMap['US']['male']['neutral']
 }
 
 // Detect if text is Japanese
@@ -807,6 +970,7 @@ const generateGeminiTTS = async (text: string, voiceName: string, emotionPrompt:
   
   console.log('🎙️ Gemini TTS Request:', JSON.stringify(requestBody, null, 2))
   
+  // Gemini 2.5 Flash Preview TTS モデルを使用（感情表現対応）
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`,
     {
@@ -824,12 +988,23 @@ const generateGeminiTTS = async (text: string, voiceName: string, emotionPrompt:
   
   const data = await response.json()
   
+  console.log('🎙️ Gemini TTS Response structure:', JSON.stringify(data, null, 2).substring(0, 500))
+  
   // Extract base64 audio from response
-  const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data
+  // Try multiple possible paths
+  let audioData = data.candidates?.[0]?.content?.parts?.[0]?.inline_data?.data
   
   if (!audioData) {
+    // Try alternative path
+    audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data
+  }
+  
+  if (!audioData) {
+    console.error('Full Gemini TTS response:', JSON.stringify(data, null, 2))
     throw new Error('Gemini TTS: 音声データが見つかりません')
   }
+  
+  console.log('✅ Gemini TTS: Audio data extracted successfully')
   
   return audioData
 }
@@ -838,7 +1013,7 @@ const generateGeminiTTS = async (text: string, voiceName: string, emotionPrompt:
 app.post('/api/generate-audio', async (c) => {
   try {
     const body = await c.req.json()
-    const { script, speakers, parsedLines, questions, questionReader, useGeminiTTS } = body
+    const { script, speakers, parsedLines, questions, questionReader, narratorSettings, useGeminiTTS } = body
     
     if (!script || !speakers || speakers.length === 0) {
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
@@ -858,19 +1033,43 @@ app.post('/api/generate-audio', async (c) => {
     // Create speaker voice map
     const speakerVoiceMap: Record<string, any> = {}
     speakers.forEach((speaker: any) => {
+      const speakerLanguage = speaker.language || 'en'
+      let voiceConfig: any
+      
+      if (speakerLanguage === 'ja') {
+        // Japanese speaker - use Japanese voice based on gender
+        const speakerGender = speaker.gender || 'male'
+        if (speakerGender === 'female') {
+          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-B' } // Female
+          console.log(`✅ Speaker ${speaker.name}: Japanese FEMALE voice (ja-JP-Wavenet-B)`)
+        } else {
+          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' } // Male
+          console.log(`✅ Speaker ${speaker.name}: Japanese MALE voice (ja-JP-Wavenet-D)`)
+        }
+        console.log(`   → Full config:`, JSON.stringify(speaker))
+      } else {
+        // English speaker - use accent, gender, voiceStyle
+        voiceConfig = getGoogleTTSVoice(speaker.accent, speaker.gender || 'male', speaker.voiceStyle || 'neutral')
+        console.log(`✅ Speaker ${speaker.name}: English ${speaker.gender || 'male'} voice`)
+        console.log(`   → Voice config:`, JSON.stringify(voiceConfig))
+        console.log(`   → Full speaker:`, JSON.stringify(speaker))
+      }
+      
       speakerVoiceMap[speaker.name] = {
-        voice: getGoogleTTSVoice(speaker.accent, speaker.gender || 'male'),
+        voice: voiceConfig,
         speed: speaker.speed || 1.0,
         pauseAfter: speaker.pauseAfter || 0,
-        gender: speaker.gender || 'male'
+        gender: speaker.gender || 'male',
+        voiceStyle: speaker.voiceStyle || 'neutral',
+        language: speakerLanguage
       }
     })
     
     // Generate audio for each line
     const audioSegments: Array<{ speaker: string, audio: string, pauseAfter: number, type?: string, text?: string }> = []
     
-    // Helper function to apply SSML instructions to text
-    const applySSMLInstructions = (text: string, ssmlInstructions?: string): string => {
+    // Helper function to apply SSML instructions to text with optional speaking rate
+    const applySSMLInstructions = (text: string, ssmlInstructions?: string, speakingRate?: number): string => {
       if (!ssmlInstructions || ssmlInstructions.trim() === '') {
         return text
       }
@@ -886,6 +1085,12 @@ app.post('/api/generate-audio', async (c) => {
         .replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;') // Escape & not already part of entity
         // Don't escape < and > as they are part of SSML tags
       
+      // Apply overall speaking rate if provided and not 1.0
+      if (speakingRate && speakingRate !== 1.0) {
+        const ratePercent = Math.round(speakingRate * 100)
+        escapedSSML = `<prosody rate="${ratePercent}%">${escapedSSML}</prosody>`
+      }
+      
       // Wrap with <speak> tags
       return `<speak>${escapedSSML}</speak>`
     }
@@ -897,8 +1102,8 @@ app.post('/api/generate-audio', async (c) => {
       
       // Check if we should use SSML
       if (useSSML) {
-        // Use SSML input
-        const ssmlText = applySSMLInstructions(text, ssmlInstructions)
+        // Use SSML input with speaking rate applied
+        const ssmlText = applySSMLInstructions(text, ssmlInstructions, speakingRate)
         console.log('🔍 Using SSML:', ssmlText)
         inputContent = { ssml: ssmlText }
       } else {
@@ -906,12 +1111,21 @@ app.post('/api/generate-audio', async (c) => {
         inputContent = { text }
       }
       
+      // Determine voice name based on voice config structure
+      let voiceName: string
+      if (voiceConfig.name) {
+        // Japanese or other direct voice config (only has 'name' field)
+        voiceName = voiceConfig.name
+      } else {
+        // English voice config (has 'ssml' and 'standard' fields)
+        voiceName = useSSML ? voiceConfig.ssml : voiceConfig.standard
+      }
+      
       const ttsRequest = {
         input: inputContent,
         voice: {
           languageCode: voiceConfig.languageCode,
-          // Use SSML-compatible voice when using SSML, otherwise use standard voice
-          name: useSSML ? voiceConfig.ssml : voiceConfig.standard
+          name: voiceName
         },
         audioConfig: {
           audioEncoding: 'MP3',
@@ -922,6 +1136,7 @@ app.post('/api/generate-audio', async (c) => {
       }
       
       console.log('📤 TTS Request:', JSON.stringify(ttsRequest, null, 2))
+      console.log('🎤 Voice Name Used:', voiceName, '| Language:', voiceConfig.languageCode)
       
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
@@ -957,48 +1172,67 @@ app.post('/api/generate-audio', async (c) => {
       
       // Handle narration
       if (line.type === 'narration' || line.isNarration) {
-        const textIsJapanese = isJapanese(line.text)
-        if (textIsJapanese) {
-          // Japanese narration
-          voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' }
+        console.log('🎙️ Narration detected for line:', line.speaker)
+        console.log('🎙️ Checking if Narration speaker exists in map:', !!speakerVoiceMap['Narration'])
+        
+        // Check if Narration speaker is in the speakerVoiceMap (for regeneration)
+        if (speakerVoiceMap['Narration']) {
+          console.log('✅ Using Narration speaker from speakerVoiceMap')
+          const narratorConfig = speakerVoiceMap['Narration']
+          voiceConfig = narratorConfig.voice
+          speakingRate = narratorConfig.speed
+          console.log('🎯 Narrator config from map:', JSON.stringify(narratorConfig))
         } else {
-          // English narration (US neutral voice)
-          voiceConfig = { languageCode: 'en-US', name: 'en-US-Journey-D' }
+          // Fallback to narratorSettings (for initial generation)
+          const narratorLanguage = narratorSettings?.language || 'en'
+          
+          console.log('🎙️ Using narratorSettings (fallback):', {
+            language: narratorLanguage,
+            gender: narratorSettings?.gender,
+            fullSettings: narratorSettings
+          })
+          
+          if (narratorLanguage === 'ja') {
+            // Japanese narration - use Japanese voice based on gender
+            const narratorGender = narratorSettings?.gender || 'male'
+            if (narratorGender === 'female') {
+              voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-B' } // Female
+              console.log('✅ Using Japanese FEMALE voice: ja-JP-Wavenet-B')
+            } else {
+              voiceConfig = { languageCode: 'ja-JP', name: 'ja-JP-Wavenet-D' } // Male
+              console.log('✅ Using Japanese MALE voice: ja-JP-Wavenet-D')
+            }
+          } else {
+            // English narration - use narrator settings if provided
+            const narratorAccent = narratorSettings?.accent || 'US'
+            const narratorGender = narratorSettings?.gender || 'male'
+            const narratorVoiceStyle = narratorSettings?.voiceStyle || 'neutral'
+            voiceConfig = getGoogleTTSVoice(narratorAccent, narratorGender, narratorVoiceStyle)
+            console.log('✅ Using English voice:', voiceConfig)
+          }
+          speakingRate = 1.0
         }
-        speakingRate = 1.0
       } else {
         // Regular speaker
+        console.log(`🔍 Looking for speaker: "${line.speaker}"`)
+        console.log(`🔍 Available speakers in map:`, Object.keys(speakerVoiceMap))
+        
         const speakerConfig = speakerVoiceMap[line.speaker] || speakerVoiceMap[speakers[0]?.name]
         if (!speakerConfig) {
-          console.warn(`Speaker ${line.speaker} not found, using default`)
-          voiceConfig = getGoogleTTSVoice('US', 'male')
+          console.warn(`⚠️ Speaker ${line.speaker} not found, using default`)
+          voiceConfig = getGoogleTTSVoice('US', 'male', 'neutral')
           speakingRate = 1.0
         } else {
+          console.log(`✅ Found speaker config:`, JSON.stringify(speakerConfig))
           voiceConfig = speakerConfig.voice
           speakingRate = speakerConfig.speed
         }
       }
       
-      // Choose TTS engine: Gemini or Google
-      if (useGeminiTTS && GEMINI_API_KEY) {
-        // Use Gemini TTS with emotion prompts
-        const geminiVoice = getGeminiTTSVoice(
-          speakerVoiceMap[line.speaker]?.gender || 'US',
-          speakerVoiceMap[line.speaker]?.gender || 'male'
-        )
-        const emotionPrompt = convertEmotionToPrompt(line.text, line.voiceInstructions)
-        
-        try {
-          audioContent = await generateGeminiTTS(line.text, geminiVoice, emotionPrompt, GEMINI_API_KEY)
-        } catch (geminiError: any) {
-          console.error('Gemini TTS failed, falling back to Google TTS:', geminiError.message)
-          // Fallback to Google TTS
-          audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
-        }
-      } else {
-        // Use Google TTS with SSML instructions if provided
-        audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
-      }
+      console.log(`🎯 Final voice config for line:`, JSON.stringify(voiceConfig))
+      
+      // Always use Google TTS with SSML instructions
+      audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
       
       audioSegments.push({
         speaker: line.speaker,
@@ -1007,7 +1241,7 @@ app.post('/api/generate-audio', async (c) => {
         type: line.type || 'dialogue',
         text: line.text,
         ssmlInstructions: line.ssmlInstructions,
-        ttsEngine: useGeminiTTS && GEMINI_API_KEY ? 'gemini' : 'google'
+        ttsEngine: 'google'
       })
     }
     
@@ -1015,7 +1249,8 @@ app.post('/api/generate-audio', async (c) => {
     if (questions && questions.length > 0 && questionReader) {
       const qReaderVoice = getGoogleTTSVoice(
         questionReader.accent || 'US',
-        questionReader.gender || 'male'
+        questionReader.gender || 'male',
+        questionReader.voiceStyle || 'neutral'
       )
       const qReaderSpeed = questionReader.speed || 1.0
       const qPause = questionReader.questionPause || 2.0
@@ -1346,6 +1581,417 @@ app.delete('/api/admin/users/:id', requireAdmin, async (c) => {
   } catch (error: any) {
     console.error('Delete user error:', error)
     return c.json({ success: false, error: 'ユーザーの削除に失敗しました' }, 500)
+  }
+})
+
+// ============================================
+// Folder and Listening Test Management APIs
+// ============================================
+
+// Get all folders for current user
+app.get('/api/folders', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const folders = await c.env.DB.prepare(
+      'SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC'
+    ).bind(userId).all()
+    
+    return c.json({ success: true, folders: folders.results })
+  } catch (error: any) {
+    console.error('Get folders error:', error)
+    return c.json({ success: false, error: 'フォルダの取得に失敗しました' }, 500)
+  }
+})
+
+// Create new folder
+app.post('/api/folders', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const body = await c.req.json()
+    const { name } = body
+    
+    if (!name || name.trim() === '') {
+      return c.json({ success: false, error: 'フォルダ名を入力してください' }, 400)
+    }
+    
+    const result = await c.env.DB.prepare(
+      'INSERT INTO folders (name, user_id) VALUES (?, ?)'
+    ).bind(name.trim(), userId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'フォルダを作成しました',
+      folder_id: result.meta.last_row_id
+    })
+  } catch (error: any) {
+    console.error('Create folder error:', error)
+    return c.json({ success: false, error: 'フォルダの作成に失敗しました' }, 500)
+  }
+})
+
+// Update folder name
+app.put('/api/folders/:id', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const folderId = c.req.param('id')
+    const body = await c.req.json()
+    const { name } = body
+    
+    if (!name || name.trim() === '') {
+      return c.json({ success: false, error: 'フォルダ名を入力してください' }, 400)
+    }
+    
+    // Check if folder belongs to user
+    const folder = await c.env.DB.prepare(
+      'SELECT id FROM folders WHERE id = ? AND user_id = ?'
+    ).bind(folderId, userId).first()
+    
+    if (!folder) {
+      return c.json({ success: false, error: 'フォルダが見つかりません' }, 404)
+    }
+    
+    await c.env.DB.prepare(
+      'UPDATE folders SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(name.trim(), folderId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'フォルダ名を変更しました'
+    })
+  } catch (error: any) {
+    console.error('Update folder error:', error)
+    return c.json({ success: false, error: 'フォルダ名の変更に失敗しました' }, 500)
+  }
+})
+
+// Delete folder
+app.delete('/api/folders/:id', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const folderId = c.req.param('id')
+    
+    // Check if folder belongs to user
+    const folder = await c.env.DB.prepare(
+      'SELECT id FROM folders WHERE id = ? AND user_id = ?'
+    ).bind(folderId, userId).first()
+    
+    if (!folder) {
+      return c.json({ success: false, error: 'フォルダが見つかりません' }, 404)
+    }
+    
+    // Delete folder (CASCADE will delete all tests in it)
+    await c.env.DB.prepare(
+      'DELETE FROM folders WHERE id = ?'
+    ).bind(folderId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'フォルダを削除しました'
+    })
+  } catch (error: any) {
+    console.error('Delete folder error:', error)
+    return c.json({ success: false, error: 'フォルダの削除に失敗しました' }, 500)
+  }
+})
+
+// Get all tests in a folder
+app.get('/api/folders/:id/tests', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const folderId = c.req.param('id')
+    
+    // Check if folder belongs to user
+    const folder = await c.env.DB.prepare(
+      'SELECT id, name FROM folders WHERE id = ? AND user_id = ?'
+    ).bind(folderId, userId).first()
+    
+    if (!folder) {
+      return c.json({ success: false, error: 'フォルダが見つかりません' }, 404)
+    }
+    
+    // Get all tests in folder (without audio_data for performance)
+    const tests = await c.env.DB.prepare(
+      'SELECT id, title, topic, format, cefr_level, keywords, created_at FROM listening_tests WHERE folder_id = ? ORDER BY created_at DESC'
+    ).bind(folderId).all()
+    
+    return c.json({ 
+      success: true, 
+      folder: folder,
+      tests: tests.results 
+    })
+  } catch (error: any) {
+    console.error('Get tests error:', error)
+    return c.json({ success: false, error: 'テストの取得に失敗しました' }, 500)
+  }
+})
+
+// Save listening test
+app.post('/api/tests', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const body = await c.req.json()
+    const { 
+      folder_id, 
+      title, 
+      topic, 
+      format, 
+      cefr_level, 
+      keywords, 
+      script, 
+      questions, 
+      audio_settings, 
+      audio_data 
+    } = body
+    
+    if (!folder_id || !title || !script) {
+      return c.json({ success: false, error: '必須項目が不足しています' }, 400)
+    }
+    
+    // Check if folder belongs to user
+    const folder = await c.env.DB.prepare(
+      'SELECT id FROM folders WHERE id = ? AND user_id = ?'
+    ).bind(folder_id, userId).first()
+    
+    if (!folder) {
+      return c.json({ success: false, error: 'フォルダが見つかりません' }, 404)
+    }
+    
+    // Generate audio URL
+    const testId = Date.now() // Temporary ID, will be replaced
+    const audio_url = `/api/tests/${testId}/audio`
+    
+    const result = await c.env.DB.prepare(
+      `INSERT INTO listening_tests 
+       (folder_id, title, topic, format, cefr_level, keywords, script, questions, audio_settings, audio_data, audio_url) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      folder_id, 
+      title, 
+      topic || '', 
+      format || 'monologue', 
+      cefr_level || 'B1', 
+      keywords || '', 
+      script, 
+      JSON.stringify(questions || []), 
+      JSON.stringify(audio_settings || {}), 
+      audio_data || '', 
+      audio_url
+    ).run()
+    
+    const insertedId = result.meta.last_row_id
+    
+    // Update audio URL with actual ID
+    await c.env.DB.prepare(
+      'UPDATE listening_tests SET audio_url = ? WHERE id = ?'
+    ).bind(`/api/tests/${insertedId}/audio`, insertedId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'テストを保存しました',
+      test_id: insertedId,
+      audio_url: `/api/tests/${insertedId}/audio`
+    })
+  } catch (error: any) {
+    console.error('Save test error:', error)
+    return c.json({ success: false, error: 'テストの保存に失敗しました' }, 500)
+  }
+})
+
+// Get listening test by ID
+app.get('/api/tests/:id', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const testId = c.req.param('id')
+    
+    // Get test and verify ownership through folder
+    const test = await c.env.DB.prepare(
+      `SELECT lt.*, f.user_id 
+       FROM listening_tests lt 
+       JOIN folders f ON lt.folder_id = f.id 
+       WHERE lt.id = ? AND f.user_id = ?`
+    ).bind(testId, userId).first()
+    
+    if (!test) {
+      return c.json({ success: false, error: 'テストが見つかりません' }, 404)
+    }
+    
+    // Parse JSON fields
+    const testData: any = { ...test }
+    testData.questions = JSON.parse(test.questions as string || '[]')
+    testData.audio_settings = JSON.parse(test.audio_settings as string || '{}')
+    delete testData.user_id // Don't expose user_id
+    
+    return c.json({ 
+      success: true, 
+      test: testData
+    })
+  } catch (error: any) {
+    console.error('Get test error:', error)
+    return c.json({ success: false, error: 'テストの取得に失敗しました' }, 500)
+  }
+})
+
+// Get audio file for a test
+app.get('/api/tests/:id/audio', async (c) => {
+  try {
+    const testId = c.req.param('id')
+    
+    // Get audio data (public access - no auth required for sharing)
+    const test = await c.env.DB.prepare(
+      'SELECT audio_data, title FROM listening_tests WHERE id = ?'
+    ).bind(testId).first()
+    
+    if (!test || !test.audio_data) {
+      return c.json({ success: false, error: '音声ファイルが見つかりません' }, 404)
+    }
+    
+    // Decode base64 audio data
+    const audioData = test.audio_data as string
+    const base64Data = audioData.replace(/^data:audio\/\w+;base64,/, '')
+    const audioBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
+    
+    // Return MP3 file
+    return new Response(audioBuffer, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Disposition': `attachment; filename="${test.title || 'listening-test'}.mp3"`,
+        'Cache-Control': 'public, max-age=31536000'
+      }
+    })
+  } catch (error: any) {
+    console.error('Get audio error:', error)
+    return c.json({ success: false, error: '音声ファイルの取得に失敗しました' }, 500)
+  }
+})
+
+// Generate QR code for audio URL
+app.get('/api/tests/:id/qr', async (c) => {
+  try {
+    const testId = c.req.param('id')
+    
+    // Verify test exists
+    const test = await c.env.DB.prepare(
+      'SELECT id, title FROM listening_tests WHERE id = ?'
+    ).bind(testId).first()
+    
+    if (!test) {
+      return c.json({ success: false, error: 'テストが見つかりません' }, 404)
+    }
+    
+    // Get base URL from request
+    const url = new URL(c.req.url)
+    const baseUrl = `${url.protocol}//${url.host}`
+    const audioUrl = `${baseUrl}/api/tests/${testId}/audio`
+    
+    // Generate QR code using qrcode.js CDN API
+    // We'll use Google Charts API as a fallback
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(audioUrl)}`
+    
+    return c.json({
+      success: true,
+      qr_code_url: qrCodeUrl,
+      audio_url: audioUrl
+    })
+  } catch (error: any) {
+    console.error('Generate QR error:', error)
+    return c.json({ success: false, error: 'QRコードの生成に失敗しました' }, 500)
+  }
+})
+
+// Delete listening test
+app.delete('/api/tests/:id', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader) {
+      return c.json({ success: false, error: '認証が必要です' }, 401)
+    }
+    
+    const token = authHeader.replace('Bearer ', '')
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const userId = parseInt(decoded.split(':')[1])
+    
+    const testId = c.req.param('id')
+    
+    // Verify ownership through folder
+    const test = await c.env.DB.prepare(
+      `SELECT lt.id 
+       FROM listening_tests lt 
+       JOIN folders f ON lt.folder_id = f.id 
+       WHERE lt.id = ? AND f.user_id = ?`
+    ).bind(testId, userId).first()
+    
+    if (!test) {
+      return c.json({ success: false, error: 'テストが見つかりません' }, 404)
+    }
+    
+    // Delete test
+    await c.env.DB.prepare(
+      'DELETE FROM listening_tests WHERE id = ?'
+    ).bind(testId).run()
+    
+    return c.json({ 
+      success: true, 
+      message: 'テストを削除しました'
+    })
+  } catch (error: any) {
+    console.error('Delete test error:', error)
+    return c.json({ success: false, error: 'テストの削除に失敗しました' }, 500)
   }
 })
 
