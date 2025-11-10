@@ -23,13 +23,9 @@
     "hono": "^4.10.4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "4.20250705.0",
     "@hono/vite-cloudflare-pages": "^0.4.2",
     "vite": "^5.4.11",
     "wrangler": "^3.78.0",
     "typescript": "^5.0.0"
-  },
-  "overrides": {
-    "vite": "^5.4.11"
   }
 }
