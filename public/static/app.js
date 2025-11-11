@@ -2047,10 +2047,21 @@ function showAudioResult() {
         </div>
       </div>
       
+      <div class="mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+        <p class="text-sm text-blue-800 mb-2 font-semibold">
+          <i class="fas fa-info-circle mr-1"></i>
+          ブランク（間隔）を変更した場合は、ダウンロード前に「ブランクを反映」ボタンをクリックしてください
+        </p>
+        <button id="updateBlanksButton"
+                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+          <i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）
+        </button>
+      </div>
+      
       <div class="flex gap-4 mb-4">
         <button id="downloadMp3Button"
                 class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
-          <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
+          <i class="fas fa-download mr-2"></i>WAVダウンロード（結合済み）
         </button>
         <button id="backToScriptButton"
                 class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
@@ -2817,6 +2828,68 @@ function showAudioResult() {
       currentState.audioSegments[index].pauseAfter = pauseValue;
       console.log(`ブランク更新: セグメント${index} → ${pauseValue}秒`);
     });
+  });
+  
+  // Update blanks button - Regenerate silence segments based on current pauseAfter values
+  document.getElementById('updateBlanksButton').addEventListener('click', async () => {
+    const btn = document.getElementById('updateBlanksButton');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>サイレンスを再生成中...';
+    
+    try {
+      console.log('🔄 Regenerating silence segments...');
+      
+      // Remove all existing silence segments
+      currentState.audioSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
+      console.log(`✅ Removed old silence segments. Remaining: ${currentState.audioSegments.length} segments`);
+      
+      // Insert new silence segments based on current pauseAfter values
+      const newSegments = [];
+      for (let i = 0; i < currentState.audioSegments.length; i++) {
+        const segment = currentState.audioSegments[i];
+        newSegments.push(segment);
+        
+        const pauseAfter = segment.pauseAfter || 0;
+        if (pauseAfter > 0) {
+          // Request silence from backend
+          console.log(`⏸️ Generating ${pauseAfter}s silence after segment ${i}...`);
+          
+          const silenceResponse = await axios.post('/api/generate-silence', {
+            duration: pauseAfter
+          });
+          
+          if (silenceResponse.data.success) {
+            newSegments.push({
+              speaker: 'Silence',
+              audio: silenceResponse.data.silenceBase64,
+              pauseAfter: 0,
+              type: 'silence',
+              text: `[Silence: ${pauseAfter}s]`
+            });
+            console.log(`✅ Added ${pauseAfter}s silence`);
+          } else {
+            console.error(`❌ Failed to generate silence for segment ${i}`);
+          }
+        }
+      }
+      
+      currentState.audioSegments = newSegments;
+      console.log(`✅ Total segments after update: ${currentState.audioSegments.length}`);
+      
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check mr-2"></i>ブランクを反映（完了）';
+      
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）';
+      }, 2000);
+      
+      alert('ブランクの反映が完了しました。ダウンロードできます。');
+    } catch (error) {
+      console.error('Silence regeneration error:', error);
+      alert('サイレンス再生成エラー: ' + error.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）';
+    }
   });
   
   // Save to folder button

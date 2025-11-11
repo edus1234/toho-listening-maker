@@ -1350,6 +1350,39 @@ app.post('/api/generate-audio', async (c) => {
   }
 })
 
+// Generate silence segment endpoint
+app.post('/api/generate-silence', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { duration } = body
+    
+    if (!duration || duration <= 0) {
+      return c.json({ success: false, error: '無効なサイレンス長です' }, 400)
+    }
+    
+    // Get pre-generated silence base64
+    const silenceBase64 = getSilenceBase64(duration)
+    
+    if (!silenceBase64) {
+      return c.json({ success: false, error: 'サイレンスデータが見つかりません' }, 500)
+    }
+    
+    console.log(`✅ Generated ${duration}s silence`)
+    
+    return c.json({
+      success: true,
+      silenceBase64: silenceBase64,
+      duration: duration
+    })
+  } catch (error: any) {
+    console.error('Silence generation error:', error)
+    return c.json({ 
+      success: false, 
+      error: `サイレンス生成中にエラーが発生しました: ${error.message}` 
+    }, 500)
+  }
+})
+
 // Audio merging endpoint
 app.post('/api/merge-audio', async (c) => {
   try {
