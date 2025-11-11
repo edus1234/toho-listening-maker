@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "toho-listening-maker",
+  "compatibility_date": "2025-11-03",
+  "pages_build_output_dir": "./dist",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "toho-listening-db",
+      "database_id": "dd170a52-e43d-4813-8ebf-a428b1d8febb"
+    }
+  ]
+}
