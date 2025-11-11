@@ -2689,25 +2689,42 @@ function showAudioResult() {
       }
   }
   
-  // Download MP3 button - Using Web Audio API for proper MP3 concatenation
+  // Download MP3 button - Call backend to merge audio with blanks, then use Web Audio API
   document.getElementById('downloadMp3Button').addEventListener('click', async () => {
     const btn = document.getElementById('downloadMp3Button');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>結合中...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ブランクを挿入中...';
     
-    console.log('🎵 Downloading MP3 with audioSegments:', currentState.audioSegments.length, 'segments');
+    console.log('🎵 Downloading audio with', currentState.audioSegments.length, 'segments');
     
     try {
-      // Use Web Audio API to properly decode and concatenate MP3 files
+      // Step 1: Call backend to merge audio segments with silence blocks
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>サーバーで統合中...';
+      
+      // Filter out silence segments (only send audio segments to backend)
+      const audioOnlySegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
+      console.log(`📤 Sending ${audioOnlySegments.length} audio segments to backend (excluding existing silence)`);
+      
+      const mergeResponse = await axios.post('/api/merge-audio', {
+        audioSegments: audioOnlySegments
+      });
+      
+      if (!mergeResponse.data.success) {
+        throw new Error(mergeResponse.data.error || 'サーバーでの統合に失敗しました');
+      }
+      
+      const mergedSegments = mergeResponse.data.mergedSegments;
+      console.log(`✅ Server merged into ${mergedSegments.length} blocks (audio + silence)`);
+      
+      // Step 2: Use Web Audio API to decode and concatenate all blocks
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>デコード中...';
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const audioBuffers = [];
       
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>デコード中...';
-      
-      // Decode all segments
-      for (let i = 0; i < currentState.audioSegments.length; i++) {
-        const segment = currentState.audioSegments[i];
-        const base64Audio = segment.audio;
+      // Decode all blocks (including silence blocks)
+      for (let i = 0; i < mergedSegments.length; i++) {
+        const block = mergedSegments[i];
+        const base64Audio = block.audio;
         
         // Convert base64 to ArrayBuffer
         const binaryString = atob(base64Audio);
@@ -2720,10 +2737,11 @@ function showAudioResult() {
         try {
           const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
           audioBuffers.push(audioBuffer);
-          console.log(`✅ Decoded segment ${i+1}/${currentState.audioSegments.length}: ${audioBuffer.duration.toFixed(2)}s`);
+          const blockType = block.type === 'silence' ? '⏸️ Silence' : '🎤 Audio';
+          console.log(`✅ Decoded block ${i+1}/${mergedSegments.length} (${blockType}): ${audioBuffer.duration.toFixed(2)}s`);
         } catch (decodeError) {
-          console.error(`❌ Failed to decode segment ${i}:`, decodeError);
-          throw new Error(`セグメント ${i+1} のデコードに失敗しました`);
+          console.error(`❌ Failed to decode block ${i}:`, decodeError);
+          throw new Error(`ブロック ${i+1} のデコードに失敗しました`);
         }
       }
       

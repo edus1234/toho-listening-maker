@@ -1383,8 +1383,67 @@ app.post('/api/generate-silence', async (c) => {
   }
 })
 
-// Audio merging endpoint
+// Audio merging endpoint with blank insertion
 app.post('/api/merge-audio', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { audioSegments } = body
+    
+    if (!audioSegments || audioSegments.length === 0) {
+      return c.json({ success: false, error: '音声セグメントが提供されていません' }, 400)
+    }
+    
+    console.log(`🔗 Merging ${audioSegments.length} audio segments with blanks...`)
+    
+    // Build merged segments array: audio blocks + silence blocks
+    const mergedSegments: Array<{ audio: string, duration?: number, type: string, speaker?: string, text?: string }> = []
+    
+    for (const segment of audioSegments) {
+      // Skip silence segments that are already in the array (from previous operations)
+      if (segment.type === 'silence') {
+        continue
+      }
+      
+      // Add the audio segment (発言ブロック)
+      mergedSegments.push({
+        audio: segment.audio,
+        type: segment.type || 'dialogue',
+        speaker: segment.speaker,
+        text: segment.text
+      })
+      
+      // Add silence block (ブランクブロック) after this segment if pauseAfter > 0
+      const pauseAfter = segment.pauseAfter || 0
+      if (pauseAfter > 0) {
+        const silenceBase64 = getSilenceBase64(pauseAfter)
+        if (silenceBase64) {
+          console.log(`⏸️ Adding ${pauseAfter}s silence after ${segment.speaker}`)
+          mergedSegments.push({
+            audio: silenceBase64,
+            duration: pauseAfter,
+            type: 'silence',
+            speaker: 'Silence',
+            text: `[Silence: ${pauseAfter}s]`
+          })
+        }
+      }
+    }
+    
+    console.log(`✅ Merged into ${mergedSegments.length} blocks (audio + silence)`)
+    
+    return c.json({
+      success: true,
+      mergedSegments: mergedSegments,
+      totalSegments: mergedSegments.length
+    })
+  } catch (error: any) {
+    console.error('Merge audio error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
+// Old merge endpoint for backward compatibility (deprecated)
+app.post('/api/merge-audio-old', async (c) => {
   try {
     const body = await c.req.json()
     const { audioSegments } = body
@@ -1393,27 +1452,19 @@ app.post('/api/merge-audio', async (c) => {
       return c.json({ success: false, error: '音声セグメントがありません' }, 400)
     }
     
-    // For Cloudflare Workers, we can't use ffmpeg or native audio processing
-    // Instead, we'll concatenate the base64 MP3 data and let the client handle it
-    // In a real implementation, you'd use a service like FFmpeg API or AWS Lambda
-    
-    // NOTE: Simple MP3 concatenation doesn't work well for adding silence
-    // Instead, we return segments as-is and let the client handle playback with delays
-    // For download, we just concatenate the audio data
-    
-    console.log('Merging audio segments:', audioSegments.length);
+    console.log('Merging audio segments (old method):', audioSegments.length);
     
     // Prepare merged audio data
-    const mergedSegments = [];
+    const mergedAudio = [];
     
     for (let i = 0; i < audioSegments.length; i++) {
       const segment = audioSegments[i];
-      mergedSegments.push(segment.audio);
+      mergedAudio.push(segment.audio);
       console.log(`Segment ${i}: pauseAfter = ${segment.pauseAfter || 0}s`);
     }
     
-    // Simple concatenation - this creates a valid MP3
-    const mergedAudioBase64 = mergedSegments.join('');
+    // Simple concatenation
+    const mergedAudioBase64 = mergedAudio.join('');
     
     // Convert base64 to binary
     try {
