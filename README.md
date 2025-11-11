@@ -4,6 +4,7 @@
 
 ## 🌐 公開URL
 
+- **本番環境**: https://3f906693.toho-listening-maker.pages.dev
 - **開発環境**: https://3000-ig5yq671gzgh8b7xu04ha-b237eb32.sandbox.novita.ai
 - **APIヘルスチェック**: https://3000-ig5yq671gzgh8b7xu04ha-b237eb32.sandbox.novita.ai/api/health
 
@@ -89,13 +90,20 @@
   - 各セグメントのテキスト表示 ⭐NEW
   - セグメントタイプの視覚的区別（ナレーション/対話/問題/選択肢）
   - ブランク時間の表示
+- **ブランク（空白）機能** 🔧 **完全修正済み**:
+  - 各セリフ後のブランク時間を個別設定（0〜10秒）
+  - 「ブランクを反映」ボタンでサイレンス挿入
+  - **修正内容**: displayIndexを使った正確な入力マッピング
+  - Web Audio APIによる正確なMP3デコード・結合
+  - WAV形式での出力（MP3メタデータ問題を回避）
 - **再生機能**:
   - セグメント別の個別再生
   - 全セグメント連続再生
   - ブランクを含む自然な再生
 - **ダウンロード機能**:
-  - 結合されたMP3ファイルのダウンロード
-  - ファイル名: listening-test.mp3
+  - 結合されたWAVファイルのダウンロード 🔧 **修正済み**
+  - ファイル名: listening-test.wav
+  - **すべてのブランクが正確に反映される**
 - **保存機能** 🆕:
   - フォルダへの保存ボタン
   - 音声データをデータベースに保存
@@ -199,9 +207,17 @@
 
 - **フレームワーク**: Hono (軽量Webフレームワーク)
 - **デプロイ先**: Cloudflare Pages/Workers
+- **データベース**: Cloudflare D1 (SQLite)
 - **フロントエンド**: Vanilla JavaScript + TailwindCSS
 - **ビルドツール**: Vite
 - **開発環境**: PM2でプロセス管理
+- **AI/TTS**:
+  - OpenAI GPT-4o mini (スクリプト生成)
+  - Google Text-to-Speech API (音声生成)
+- **音声処理**:
+  - Web Audio API (MP3デコード・結合)
+  - Base64エンコーディング (音声データ保存)
+  - CBR MP3サイレンス (ID3/VBRヘッダなし)
 
 ## 📦 プロジェクト構造
 
@@ -209,14 +225,28 @@
 webapp/
 ├── src/
 │   ├── index.tsx          # Honoアプリケーション（メインエントリーポイント）
+│   ├── silence-base64.ts  # 静的サイレンスファイル（Base64エンコード）
 │   └── renderer.tsx       # JSXレンダラー
 ├── public/
-│   └── static/
-│       ├── app.js         # フロントエンドJavaScript（画面遷移とUI制御）
-│       └── style.css      # スタイル
+│   ├── static/
+│   │   ├── app.js         # フロントエンドJavaScript（画面遷移とUI制御）
+│   │   ├── style.css      # スタイル
+│   │   └── silence/       # サイレンスMP3ファイル
+│   │       ├── silence_0.5s.mp3
+│   │       ├── silence_1.0s.mp3
+│   │       ├── silence_2.0s.mp3
+│   │       └── silence_3.0s.mp3
+│   ├── toho-logo.png      # 桐朋ロゴ（未使用）
+│   └── toho-logo.svg      # 桐朋ロゴSVG（未使用）
+├── migrations/            # D1データベースマイグレーション
+│   ├── 0001_create_users_table.sql
+│   └── 0002_create_folders_and_tests.sql
 ├── dist/                  # ビルド出力
+├── .dev.vars              # ローカル環境変数（API Keys）
+├── .wrangler/             # Wranglerローカル状態（ローカルD1含む）
 ├── ecosystem.config.cjs   # PM2設定
-├── wrangler.jsonc         # Cloudflare設定
+├── wrangler.jsonc         # Cloudflare設定（D1バインディング）
+├── seed.sql               # 初期データ（toho/toho ユーザー）
 ├── package.json           # 依存関係とスクリプト
 └── README.md              # このファイル
 ```
@@ -268,6 +298,37 @@ pm2 logs webapp --nostream
 # PM2サービス停止
 pm2 delete webapp
 ```
+
+## 🔇 ブランク（空白）機能の使い方
+
+各セリフの後に無音（ブランク）を挿入できます。リスニングテストで解答時間を確保する際に便利です。
+
+### 使い方
+
+1. **音声設定画面で各セリフのブランク時間を設定**:
+   - 0〜10秒の範囲で設定可能
+   - デフォルトは0秒（ブランクなし）
+   - 問題の後は長めに（例: 5秒）、通常のセリフの後は短めに（例: 1秒）
+
+2. **「ブランクを反映」ボタンをクリック**:
+   - 既存のサイレンスセグメントを削除
+   - 新しいブランク設定に基づいてサイレンスを挿入
+   - 反映完了のアラート表示
+
+3. **音声を確認**:
+   - 個別再生ボタンで各セグメントを確認
+   - 全再生ボタンでブランクを含む全体を確認
+
+4. **ダウンロード**:
+   - WAVファイルとしてダウンロード
+   - すべてのブランクが正確に反映される
+
+### 技術的な実装
+
+- **静的サイレンスMP3**: 0.5s, 1.0s, 2.0s, 3.0sの4種類
+- **CBR MP3**: ID3タグ・VBRヘッダなしで正確な結合
+- **Web Audio API**: MP3セグメントをAudioBufferにデコードして結合
+- **WAV出力**: メタデータ問題を回避し、正確な時間を保証
 
 ## 🎙️ SSML音声指示の使い方
 
@@ -402,15 +463,30 @@ pm2 delete webapp
 
 ## 📄 デプロイメント
 
+### 本番環境
+- **ステータス**: ✅ 稼働中
+- **最終更新**: 2025-11-11
+- **URL**: https://3f906693.toho-listening-maker.pages.dev
+- **データベース**: Cloudflare D1 (toho-listening-db)
+- **API Keys**: OpenAI & Google TTS設定済み
+
 ### 開発環境
 - **ステータス**: ✅ 稼働中
-- **最終更新**: 2025-11-09
-- **新機能**: フォルダ管理・保存機能
+- **URL**: https://3000-ig5yq671gzgh8b7xu04ha-b237eb32.sandbox.novita.ai
+- **ローカルD1**: 同期済み
 
-### 本番環境
-- **ステータス**: ❌ 未デプロイ
-- **デプロイコマンド**: `npm run deploy:prod`
-- **注意**: デプロイ前にマイグレーションを適用: `npm run db:migrate:prod`
+### デプロイ手順
+```bash
+# ビルドとデプロイ
+npm run build
+npx wrangler pages deploy dist --project-name toho-listening-maker
+
+# D1マイグレーション（本番）
+npx wrangler d1 migrations apply toho-listening-db --remote
+
+# 初期データ投入（本番）
+npx wrangler d1 execute toho-listening-db --remote --file=./seed.sql
+```
 
 ## 📞 使い方
 
@@ -440,6 +516,30 @@ pm2 delete webapp
 - **スムーズなアニメーション**: フェードイン効果で心地よい遷移
 
 ## 🔧 主な修正履歴
+
+### v2.1 - ブランク機能完全修正 & 本番デプロイ (2025-11-11) 🔧
+- ✅ **ブランク入力マッピング修正**: 
+  - displayIndexを使用した正確なUI入力マッピング
+  - 以前の問題: 偶数インデックス（0, 2, 4）のみ読み取り、間違ったセグメントに適用
+  - 修正後: 表示順序（0, 1, 2...）から直接visibleSegmentsに正確にマッピング
+  - コミット: `df16083 - Fix blank input mapping to use display index instead of array index`
+- ✅ **Web Audio API統合**: 
+  - MP3セグメントをAudioBufferにデコード
+  - 正確な音声バッファの結合
+  - WAV形式での出力（メタデータ問題を回避）
+- ✅ **静的サイレンスファイル**: 
+  - CBR MP3（ID3/VBRヘッダなし）
+  - 0.5s, 1.0s, 2.0s, 3.0s の4種類
+  - `/public/static/silence/` に配置
+  - `silence-base64.ts` にBase64エンコード済み
+- ✅ **本番環境デプロイ**: 
+  - Cloudflare Pages: https://3f906693.toho-listening-maker.pages.dev
+  - D1データベース: toho-listening-db（マイグレーション適用済み）
+  - 環境変数: OpenAI & Google TTS API Keys設定済み
+  - 初期ユーザー: username/password = toho/toho（SHA-256ハッシュ）
+- ✅ **Play Button修正**: 
+  - data-index属性を使った正確な音声要素の検索
+  - 編集後も正しいセグメントを再生
 
 ### v2.0 - フォルダ管理・保存機能実装 (2025-11-09) 🆕
 - ✅ **フォルダ管理機能**: ユーザーごとにテストを整理
