@@ -4,9 +4,9 @@
 
 ## 🌐 公開URL
 
-- **本番環境**: https://3f906693.toho-listening-maker.pages.dev
+- **本番環境**: **https://toho-listening-maker.pages.dev** 🎯
 - **開発環境**: https://3000-ig5yq671gzgh8b7xu04ha-b237eb32.sandbox.novita.ai
-- **APIヘルスチェック**: https://3000-ig5yq671gzgh8b7xu04ha-b237eb32.sandbox.novita.ai/api/health
+- **APIヘルスチェック**: https://toho-listening-maker.pages.dev/api/health
 
 ## ✨ 実装済み機能
 
@@ -466,7 +466,7 @@ pm2 delete webapp
 ### 本番環境
 - **ステータス**: ✅ 稼働中
 - **最終更新**: 2025-11-11
-- **URL**: https://3f906693.toho-listening-maker.pages.dev
+- **URL**: **https://toho-listening-maker.pages.dev**
 - **データベース**: Cloudflare D1 (toho-listening-db)
 - **API Keys**: OpenAI & Google TTS設定済み
 
