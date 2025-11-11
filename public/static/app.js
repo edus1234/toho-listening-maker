@@ -2830,8 +2830,16 @@ function showAudioResult() {
     input.addEventListener('change', (e) => {
       const index = parseInt(e.target.dataset.segmentIndex);
       const pauseValue = parseFloat(e.target.value) || 0;
-      currentState.audioSegments[index].pauseAfter = pauseValue;
-      console.log(`ブランク更新: セグメント${index} → ${pauseValue}秒`);
+      
+      // Find the actual non-silence segment
+      const segment = currentState.audioSegments[index];
+      if (segment && segment.type !== 'silence') {
+        segment.pauseAfter = pauseValue;
+        console.log(`✅ ブランク更新: セグメント${index} (${segment.speaker}) → ${pauseValue}秒`);
+        console.log(`   セグメントタイプ: ${segment.type}`);
+      } else {
+        console.error(`❌ セグメント${index}が見つからないか、サイレンスセグメントです`);
+      }
     });
   });
   
@@ -2844,9 +2852,21 @@ function showAudioResult() {
     try {
       console.log('🔄 Regenerating silence segments...');
       
+      // Log current state before processing
+      console.log('📊 Current audioSegments before filtering:');
+      currentState.audioSegments.forEach((seg, idx) => {
+        console.log(`  [${idx}] ${seg.speaker} (${seg.type}) - pauseAfter: ${seg.pauseAfter || 0}s`);
+      });
+      
       // Remove all existing silence segments
       currentState.audioSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
       console.log(`✅ Removed old silence segments. Remaining: ${currentState.audioSegments.length} segments`);
+      
+      // Log segments after filtering
+      console.log('📊 Segments after removing silence:');
+      currentState.audioSegments.forEach((seg, idx) => {
+        console.log(`  [${idx}] ${seg.speaker} (${seg.type}) - pauseAfter: ${seg.pauseAfter || 0}s`);
+      });
       
       // Insert new silence segments based on current pauseAfter values
       const newSegments = [];
@@ -2855,9 +2875,11 @@ function showAudioResult() {
         newSegments.push(segment);
         
         const pauseAfter = segment.pauseAfter || 0;
+        console.log(`🔍 Checking segment ${i} (${segment.speaker}): pauseAfter = ${pauseAfter}s`);
+        
         if (pauseAfter > 0) {
           // Request silence from backend
-          console.log(`⏸️ Generating ${pauseAfter}s silence after segment ${i}...`);
+          console.log(`⏸️ Generating ${pauseAfter}s silence after segment ${i} (${segment.speaker})...`);
           
           const silenceResponse = await axios.post('/api/generate-silence', {
             duration: pauseAfter
@@ -2871,10 +2893,12 @@ function showAudioResult() {
               type: 'silence',
               text: `[Silence: ${pauseAfter}s]`
             });
-            console.log(`✅ Added ${pauseAfter}s silence`);
+            console.log(`✅ Added ${pauseAfter}s silence after ${segment.speaker}`);
           } else {
             console.error(`❌ Failed to generate silence for segment ${i}`);
           }
+        } else {
+          console.log(`⏭️ No silence needed after segment ${i} (${segment.speaker})`);
         }
       }
       
