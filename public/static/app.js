@@ -1700,7 +1700,8 @@ function attachSpeakerSettingsListeners() {
     }
     
     console.log('🚀 Starting audio generation with narrator settings:', currentState.narratorSettings);
-    console.log('🚀 Starting audio generation with speakers:', currentState.speakers);
+    console.log('🚀 Starting audio generation with speakers:', JSON.stringify(currentState.speakers, null, 2));
+    console.log('🚀 Parsed lines:', JSON.stringify(currentState.parsedLines, null, 2));
     
     generateAudioFromParsedLines();
   });
@@ -1850,7 +1851,13 @@ function playNextSegment() {
 function showAudioResult() {
   const appContainer = document.getElementById('app');
   
-  const segmentsHTML = currentState.audioSegments.map((segment, index) => {
+  // Filter out silence segments from display (but keep them for download)
+  const visibleSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
+  
+  const segmentsHTML = visibleSegments.map((segment, displayIndex) => {
+    // Find original index in currentState.audioSegments
+    const index = currentState.audioSegments.indexOf(segment);
+    
     const typeIcon = segment.type === 'narration' ? '📖' : 
                     segment.type === 'question' ? '❓' :
                     segment.type === 'option' ? '📝' : '💬';
@@ -1859,14 +1866,14 @@ function showAudioResult() {
                      segment.type === 'option' ? 'yellow' : 'blue';
     
     return `
-      <div class="mb-3 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded" data-segment-index="${index}">
+      <div class="mb-3 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded draggable-segment cursor-move" data-segment-index="${index}" draggable="true">
         <div class="flex items-start gap-2">
           <!-- Move up/down buttons -->
           <div class="flex flex-col gap-1">
-            <button class="move-segment-up-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === 0 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上に移動">
+            <button class="move-segment-up-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${displayIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${displayIndex === 0 ? 'disabled' : ''} title="上に移動">
               <i class="fas fa-chevron-up"></i>
             </button>
-            <button class="move-segment-down-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === currentState.audioSegments.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === currentState.audioSegments.length - 1 ? 'disabled' : ''} title="下に移動">
+            <button class="move-segment-down-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${displayIndex === visibleSegments.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${displayIndex === visibleSegments.length - 1 ? 'disabled' : ''} title="下に移動">
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
@@ -1876,30 +1883,40 @@ function showAudioResult() {
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
               <div class="text-xs font-semibold text-gray-600">${typeIcon} ${segment.speaker}</div>
-              ${segment.type !== 'question' && segment.type !== 'option' ? `
-                ${segment.type === 'narration' || segment.isNarration ? `
-                  <select class="segment-narrator-language-select text-xs px-2 py-0.5 border border-purple-300 rounded bg-purple-50" data-segment-index="${index}">
-                    <option value="en" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
-                    <option value="ja" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
-                  </select>
-                ` : `
-                  <select class="segment-speaker-language-select text-xs px-2 py-0.5 border border-blue-300 rounded bg-blue-50" data-segment-index="${index}">
-                    <option value="en" ${(segment.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
-                    <option value="ja" ${(segment.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
-                  </select>
-                `}
-                <select class="segment-gender-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
-                  <option value="male" ${(segment.gender || 'male') === 'male' ? 'selected' : ''}>男性</option>
-                  <option value="female" ${(segment.gender || 'male') === 'female' ? 'selected' : ''}>女性</option>
+              ${segment.type === 'narration' || segment.isNarration ? `
+                <select class="segment-narrator-language-select text-xs px-2 py-0.5 border border-purple-300 rounded bg-purple-50" data-segment-index="${index}">
+                  <option value="en" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+                  <option value="ja" ${(segment.narratorLanguage || currentState.narratorSettings?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
                 </select>
-                <select class="segment-voiceStyle-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
-                  <option value="neutral" ${(segment.voiceStyle || 'neutral') === 'neutral' ? 'selected' : ''}>標準</option>
-                  <option value="warm" ${(segment.voiceStyle || 'neutral') === 'warm' ? 'selected' : ''}>明るい</option>
-                  <option value="calm" ${(segment.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
+              ` : (segment.type === 'question' || segment.type === 'option') ? `
+                <select class="segment-question-language-select text-xs px-2 py-0.5 border border-orange-300 rounded bg-orange-50" data-segment-index="${index}">
+                  <option value="en" ${(segment.language || currentState.questionReader?.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+                  <option value="ja" ${(segment.language || currentState.questionReader?.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
                 </select>
-              ` : ''}
+              ` : `
+                <select class="segment-speaker-language-select text-xs px-2 py-0.5 border border-blue-300 rounded bg-blue-50" data-segment-index="${index}">
+                  <option value="en" ${(segment.language || 'en') === 'en' ? 'selected' : ''}>英語</option>
+                  <option value="ja" ${(segment.language || 'en') === 'ja' ? 'selected' : ''}>日本語</option>
+                </select>
+              `}
+              <select class="segment-gender-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
+                <option value="male" ${(segment.gender || (segment.type === 'question' || segment.type === 'option' ? currentState.questionReader?.gender || 'male' : 'male')) === 'male' ? 'selected' : ''}>男性</option>
+                <option value="female" ${(segment.gender || (segment.type === 'question' || segment.type === 'option' ? currentState.questionReader?.gender || 'male' : 'male')) === 'female' ? 'selected' : ''}>女性</option>
+              </select>
+              <select class="segment-voiceStyle-select text-xs px-2 py-0.5 border border-gray-300 rounded" data-segment-index="${index}">
+                <option value="neutral" ${(segment.voiceStyle || 'neutral') === 'neutral' ? 'selected' : ''}>標準</option>
+                <option value="warm" ${(segment.voiceStyle || 'neutral') === 'warm' ? 'selected' : ''}>明るい</option>
+                <option value="calm" ${(segment.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
+              </select>
             </div>
-            <div class="text-sm text-gray-700 mt-1">${segment.text || ''}</div>
+            <!-- Editable script text -->
+            <div class="mt-1">
+              <textarea 
+                class="segment-text-editor w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 resize-none"
+                data-segment-index="${index}"
+                rows="2"
+                placeholder="セリフを編集...">${segment.text || ''}</textarea>
+            </div>
             
             <!-- Speed and Pause controls -->
             <div class="flex items-center gap-4 mt-2">
@@ -1955,23 +1972,20 @@ function showAudioResult() {
                   </div>
                 </div>
                 
-                <div class="mb-2 p-2 bg-gray-100 rounded text-xs">
-                  <div class="font-semibold text-gray-700 mb-1">元のテキスト:</div>
-                  <div class="text-gray-800">${segment.text || ''}</div>
+                <div class="mb-2 p-2 bg-green-50 rounded text-xs border border-green-300">
+                  <div class="font-semibold text-green-800 mb-1">✨ すべての変更は自動的に音声に反映されます</div>
+                  <div class="text-gray-700 text-xs">テキスト編集、マーク挿入、速度・アクセント・性別などの変更を行うと、即座に音声が自動再生成されます。</div>
                 </div>
                 
                 <textarea 
                   class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
                   data-segment-index="${index}"
                   rows="3"
-                  placeholder="上のテキストをコピーして、マークを挿入してください"
+                  placeholder="マークを挿入すると自動的に音声が再生成されます"
                 >${segment.voiceInstructions || segment.text || ''}</textarea>
                 
                 <div class="flex gap-2 mt-2">
-                  <button type="button" class="regenerate-audio-btn flex-1 bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition" data-segment-index="${index}">
-                    <i class="fas fa-redo mr-1"></i>音声再生成
-                  </button>
-                  <button type="button" class="clear-audio-instruction-btn bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-segment-index="${index}">
+                  <button type="button" class="clear-audio-instruction-btn w-full bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-segment-index="${index}">
                     <i class="fas fa-times mr-1"></i>クリア
                   </button>
                 </div>
@@ -2001,11 +2015,11 @@ function showAudioResult() {
         <div class="mb-4">
           <p class="text-green-800 mb-2 flex items-center font-semibold">
             <i class="fas fa-check-circle mr-2"></i>
-            音声ファイルが正常に生成されました（${currentState.audioSegments.length}セグメント）
+            音声ファイルが正常に生成されました（${visibleSegments.length}セグメント）
           </p>
           <p class="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded p-3 mt-2">
             <i class="fas fa-info-circle mr-1 text-blue-600"></i>
-            <strong>編集方法：</strong>各セグメントの順序を変更するには、上下の矢印ボタンを使用してください。編集を終えた後には各セグメントの「音声再生成」ボタンを押してください。
+            <strong>編集方法：</strong>セリフのテキストは直接編集できます。音声調整のマークを挿入すると、自動的に音声が再生成されます。セグメントの順序を変更するには、ドラッグ＆ドロップするか、上下の矢印ボタンを使用してください。
           </p>
         </div>
         
@@ -2038,6 +2052,10 @@ function showAudioResult() {
                 class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
           <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
         </button>
+        <button id="backToScriptButton"
+                class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
+          <i class="fas fa-arrow-left mr-2"></i>スクリプト編集に戻る
+        </button>
         <button id="backToInputFromAudioButton"
                 class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
           <i class="fas fa-home mr-2"></i>最初に戻る
@@ -2056,6 +2074,171 @@ function showAudioResult() {
   // Setup audio elements
   audioElements = Array.from(document.querySelectorAll('.audio-segment'));
   let isPlayingAll = false; // Flag to track if playing all segments
+  
+  // Debounce timers for auto-regeneration
+  const regenerationTimers = {};
+  
+  // Auto-regeneration function
+  async function autoRegenerateSegment(index, delay = 1000) {
+    // Clear existing timer for this segment
+    if (regenerationTimers[index]) {
+      clearTimeout(regenerationTimers[index]);
+    }
+    
+    // Set new timer
+    regenerationTimers[index] = setTimeout(async () => {
+      console.log(`🔄 Auto-regenerating segment ${index}...`);
+      await regenerateSegmentAudio(index, false); // false = no confirmation dialog
+    }, delay);
+  }
+  
+  // Shared regeneration function
+  async function regenerateSegmentAudio(index, showConfirmation = true) {
+    const segment = currentState.audioSegments[index];
+    
+    if (!segment.text) {
+      alert('テキストがありません');
+      return;
+    }
+    
+    // Show confirmation if requested
+    if (showConfirmation) {
+      if (!confirm(`「${segment.text.substring(0, 30)}...」の音声を再生成しますか？`)) {
+        return;
+      }
+    }
+    
+    // Find the segment container and show loading indicator
+    const segmentContainer = document.querySelector(`.draggable-segment[data-segment-index="${index}"]`);
+    const playButton = segmentContainer?.querySelector('.play-segment-btn');
+    const originalPlayButtonHTML = playButton?.innerHTML;
+    
+    if (playButton) {
+      playButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      playButton.disabled = true;
+    }
+    
+    try {
+      // Read current textarea value with marks
+      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      const currentTextWithMarks = textarea ? textarea.value : segment.text;
+      
+      // Read current segment text (may have been edited)
+      const textEditor = document.querySelector(`.segment-text-editor[data-segment-index="${index}"]`);
+      if (textEditor) {
+        segment.text = textEditor.value;
+      }
+      
+      // Check if text contains marks that need conversion
+      const hasMarks = /\[(0\.2秒間|0\.5秒間|1秒間|2秒間|速く|ゆっくり)\]/.test(currentTextWithMarks);
+      
+      let ssmlToUse = segment.ssmlInstructions || '';
+      
+      // If marks are present, convert them to SSML first
+      if (hasMarks) {
+        try {
+          const conversionResponse = await axios.post('/api/convert-to-ssml', {
+            text: segment.text,
+            instructions: currentTextWithMarks
+          });
+          
+          if (conversionResponse.data.success) {
+            ssmlToUse = conversionResponse.data.ssml;
+            segment.ssmlInstructions = ssmlToUse;
+            segment.voiceInstructions = currentTextWithMarks;
+          }
+        } catch (convError) {
+          console.error('Mark conversion error:', convError);
+        }
+      }
+      
+      // Find speaker settings
+      let speaker = null;
+      let speakerWithSpeed = null;
+      
+      if (segment.type === 'narration' || segment.isNarration || segment.speaker === 'Narration') {
+        const narratorLanguage = segment.narratorLanguage || currentState.narratorSettings?.language || 'en';
+        
+        speaker = {
+          name: 'Narration',
+          language: narratorLanguage,
+          accent: currentState.narratorSettings?.accent || 'US',
+          gender: segment.gender || currentState.narratorSettings?.gender || 'male',
+          voiceStyle: segment.voiceStyle || currentState.narratorSettings?.voiceStyle || 'neutral',
+          speed: segment.overallSpeed || 1.0
+        };
+        speakerWithSpeed = speaker;
+        
+        if (!currentState.narratorSettings) currentState.narratorSettings = {};
+        currentState.narratorSettings.language = narratorLanguage;
+        currentState.narratorSettings.gender = speaker.gender;
+        currentState.narratorSettings.voiceStyle = speaker.voiceStyle;
+      } else {
+        speaker = currentState.speakers.find(s => s.name === segment.speaker);
+        if (!speaker) {
+          throw new Error(`話者が見つかりません: ${segment.speaker}`);
+        }
+        
+        speakerWithSpeed = { ...speaker };
+        
+        if (segment.gender) speakerWithSpeed.gender = segment.gender;
+        if (segment.voiceStyle) speakerWithSpeed.voiceStyle = segment.voiceStyle;
+        if (segment.language) speakerWithSpeed.language = segment.language;
+        if (segment.accent) speakerWithSpeed.accent = segment.accent;
+        if (segment.overallSpeed && segment.overallSpeed !== 1.0) {
+          speakerWithSpeed.speed = segment.overallSpeed;
+        }
+      }
+      
+      const parsedLine = {
+        speaker: segment.speaker,
+        text: segment.text,
+        type: segment.type || 'dialogue',
+        isNarration: segment.type === 'narration' || segment.isNarration,
+        pauseAfter: segment.pauseAfter || 0.5,
+        ssmlInstructions: ssmlToUse,
+        voiceInstructions: currentTextWithMarks
+      };
+      
+      // Generate audio
+      const response = await axios.post('/api/generate-audio', {
+        script: segment.text,
+        speakers: [speakerWithSpeed],
+        narratorSettings: currentState.narratorSettings,
+        parsedLines: [parsedLine],
+        questions: [],
+        questionReader: null,
+        useGeminiTTS: currentState.useGeminiTTS || false
+      });
+      
+      if (response.data.success && response.data.audioSegments && response.data.audioSegments.length > 0) {
+        // Update audio in state
+        const newAudio = response.data.audioSegments[0].audio;
+        currentState.audioSegments[index].audio = newAudio;
+        
+        // Update audio element
+        const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
+        if (audioElement) {
+          audioElement.src = `data:audio/mp3;base64,${newAudio}`;
+          audioElement.dataset.rawAudio = newAudio;
+          audioElement.load();
+        }
+        
+        console.log(`✅ Segment ${index} audio regenerated`);
+      } else {
+        throw new Error(response.data.error || '音声セグメントが生成されませんでした');
+      }
+    } catch (error) {
+      console.error('Regeneration error:', error);
+      alert('音声再生成中にエラーが発生しました: ' + (error.response?.data?.error || error.message));
+    } finally {
+      // Restore button
+      if (playButton && originalPlayButtonHTML) {
+        playButton.innerHTML = originalPlayButtonHTML;
+        playButton.disabled = false;
+      }
+    }
+  }
   
   // Play all button
   document.getElementById('playAllButton').addEventListener('click', () => {
@@ -2147,6 +2330,9 @@ function showAudioResult() {
       currentState.narratorSettings.language = language;
       
       console.log(`ナレーション言語変更: セグメント${index} → ${language}`);
+      
+      // Auto-regenerate
+      autoRegenerateSegment(index);
     });
   });
   
@@ -2167,6 +2353,27 @@ function showAudioResult() {
       }
       
       console.log(`話者言語変更: セグメント${index} → ${language}`);
+      
+      // Auto-regenerate
+      autoRegenerateSegment(index);
+    });
+  });
+  
+  // Question language selector for question/option segments
+  document.querySelectorAll('.segment-question-language-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const language = e.target.value;
+      currentState.audioSegments[index].language = language;
+      
+      // Update questionReader settings
+      if (!currentState.questionReader) currentState.questionReader = {};
+      currentState.questionReader.language = language;
+      
+      console.log(`問題言語変更: セグメント${index} → ${language}`);
+      
+      // Auto-regenerate
+      autoRegenerateSegment(index);
     });
   });
   
@@ -2185,6 +2392,9 @@ function showAudioResult() {
           speaker.gender = gender;
         }
       }
+      
+      // Auto-regenerate
+      autoRegenerateSegment(index);
     });
   });
   
@@ -2203,6 +2413,9 @@ function showAudioResult() {
           speaker.voiceStyle = voiceStyle;
         }
       }
+      
+      // Auto-regenerate
+      autoRegenerateSegment(index);
     });
   });
   
@@ -2216,6 +2429,12 @@ function showAudioResult() {
       // Update display value
       const valueDisplay = e.target.closest('.flex').querySelector('.segment-speed-value');
       valueDisplay.textContent = speed.toFixed(2) + 'x';
+    });
+    
+    // Auto-regenerate on change (when user releases slider)
+    slider.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      autoRegenerateSegment(index);
     });
   });
   
@@ -2246,49 +2465,24 @@ function showAudioResult() {
     });
   });
   
-  // Insert mark buttons
-  document.querySelectorAll('.insert-mark-btn').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.currentTarget.dataset.segmentIndex);
-      const mark = e.currentTarget.dataset.mark;
-      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
-      
-      // Insert mark at cursor position
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = textarea.value;
-      const before = text.substring(0, start);
-      const after = text.substring(end);
-      
-      textarea.value = before + mark + after;
-      
-      // Move cursor after inserted mark
-      const newPos = start + mark.length;
-      textarea.selectionStart = newPos;
-      textarea.selectionEnd = newPos;
-      textarea.focus();
-    });
-  });
+  // Insert mark buttons - moved to end of function with auto-regenerate feature
   
-  // Regenerate single audio segment
-  document.querySelectorAll('.regenerate-audio-btn').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
-      const segment = currentState.audioSegments[index];
+  // ===== AUTO-REGENERATE FUNCTION =====
+  // Shared function to regenerate audio for a segment automatically
+  async function autoRegenerateSegment(index) {
+    const segment = currentState.audioSegments[index];
       
       if (!segment.text) {
-        alert('テキストがありません');
+        console.warn('テキストがないため、音声を再生成できません');
         return;
       }
       
-      // Confirm regeneration
-      if (!confirm(`「${segment.text.substring(0, 30)}...」の音声を再生成しますか？`)) {
-        return;
+      // Show loading indicator in segment
+      const segmentDiv = document.querySelector(`.draggable-segment[data-segment-index="${index}"]`);
+      if (segmentDiv) {
+        segmentDiv.style.opacity = '0.6';
+        segmentDiv.style.pointerEvents = 'none';
       }
-      
-      // Show loading
-      e.target.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>生成中...';
-      e.target.disabled = true;
       
       try {
         // ★★★ CRITICAL FIX: Read current textarea value with marks ★★★
@@ -2353,6 +2547,34 @@ function showAudioResult() {
           currentState.narratorSettings.language = narratorLanguage;
           currentState.narratorSettings.gender = speaker.gender;  // ← Also update gender
           currentState.narratorSettings.voiceStyle = speaker.voiceStyle;  // ← Also update voiceStyle
+        } else if (segment.type === 'question' || segment.type === 'option') {
+          // For questions/options, use questionReader settings
+          const questionLanguage = segment.language || currentState.questionReader?.language || 'en';
+          
+          console.log('❓ Regenerating question/option segment:', {
+            segmentGender: segment.gender,
+            globalGender: currentState.questionReader?.gender,
+            questionLanguage: questionLanguage,
+            segmentVoiceStyle: segment.voiceStyle
+          });
+          
+          speaker = {
+            name: 'Question Reader',
+            language: questionLanguage,
+            accent: currentState.questionReader?.accent || 'US',
+            gender: segment.gender || currentState.questionReader?.gender || 'male',
+            voiceStyle: segment.voiceStyle || currentState.questionReader?.voiceStyle || 'neutral',
+            speed: segment.overallSpeed || currentState.questionReader?.speed || 1.0
+          };
+          speakerWithSpeed = speaker;
+          
+          console.log('🎯 Final question reader config:', speakerWithSpeed);
+          
+          // Update questionReader settings
+          if (!currentState.questionReader) currentState.questionReader = {};
+          currentState.questionReader.language = questionLanguage;
+          currentState.questionReader.gender = speaker.gender;
+          currentState.questionReader.voiceStyle = speaker.voiceStyle;
         } else {
           // For dialogue, find the speaker
           console.log('DEBUG: Looking for speaker:', segment.speaker);
@@ -2432,29 +2654,32 @@ function showAudioResult() {
           audioElement.dataset.rawAudio = newAudio;
           audioElement.load();
           
-          // Play the new audio
+          // Play the new audio automatically
           audioElement.play();
           
-          alert('✅ 音声を再生成しました');
+          console.log('✅ 音声を自動再生成しました (セグメント ' + index + ')');
         } else {
-          alert('音声生成エラー: ' + (response.data.error || '音声セグメントが生成されませんでした'));
+          console.error('音声生成エラー:', response.data.error || '音声セグメントが生成されませんでした');
         }
       } catch (error) {
         console.error('Regeneration error:', error);
-        alert('音声再生成中にエラーが発生しました: ' + (error.response?.data?.error || error.message));
+        console.error('音声再生成中にエラーが発生しました:', error.response?.data?.error || error.message);
       } finally {
-        // Restore button
-        e.target.innerHTML = '<i class="fas fa-redo mr-1"></i>音声再生成';
-        e.target.disabled = false;
+        // Restore segment opacity
+        if (segmentDiv) {
+          segmentDiv.style.opacity = '1';
+          segmentDiv.style.pointerEvents = 'auto';
+        }
       }
-    });
-  });
+  }
   
   // Download MP3 button
   document.getElementById('downloadMp3Button').addEventListener('click', async () => {
     const btn = document.getElementById('downloadMp3Button');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>結合中...';
+    
+    console.log('🎵 Downloading MP3 with audioSegments:', currentState.audioSegments.length, 'segments');
     
     try {
       // Call API to merge audio segments
@@ -2532,6 +2757,12 @@ function showAudioResult() {
     });
   });
   
+  // Back to script editing button
+  document.getElementById('backToScriptButton').addEventListener('click', () => {
+    currentState.screen = 'scriptResult';
+    renderScreen();
+  });
+  
   document.getElementById('backToInputFromAudioButton').addEventListener('click', () => {
     currentState.screen = 'input';
     currentState.generatedScript = '';
@@ -2539,6 +2770,104 @@ function showAudioResult() {
     currentState.speakers = [];
     currentState.audioSegments = null;
     renderScreen();
+  });
+  
+  // ===== NEW: Segment text editor listeners =====
+  document.querySelectorAll('.segment-text-editor').forEach(textarea => {
+    textarea.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const newText = e.target.value;
+      
+      // Update segment text in state
+      currentState.audioSegments[index].text = newText;
+      
+      // Also update voiceInstructions if it exists
+      const voiceInstructionTextarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      if (voiceInstructionTextarea && !voiceInstructionTextarea.value.includes('[')) {
+        // Only update if no marks have been added yet
+        voiceInstructionTextarea.value = newText;
+      }
+      
+      console.log(`✏️ Segment ${index} text updated to: ${newText.substring(0, 50)}...`);
+      
+      // Auto-regenerate with updated text
+      autoRegenerateSegment(index);
+    });
+  });
+  
+  // ===== NEW: Drag and drop functionality =====
+  let draggedIndex = null;
+  
+  document.querySelectorAll('.draggable-segment').forEach(segment => {
+    segment.addEventListener('dragstart', (e) => {
+      draggedIndex = parseInt(e.currentTarget.dataset.segmentIndex);
+      e.currentTarget.style.opacity = '0.5';
+      console.log('Drag started:', draggedIndex);
+    });
+    
+    segment.addEventListener('dragend', (e) => {
+      e.currentTarget.style.opacity = '1';
+    });
+    
+    segment.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.currentTarget.style.borderTop = '3px solid blue';
+    });
+    
+    segment.addEventListener('dragleave', (e) => {
+      e.currentTarget.style.borderTop = '';
+    });
+    
+    segment.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.currentTarget.style.borderTop = '';
+      
+      const dropIndex = parseInt(e.currentTarget.dataset.segmentIndex);
+      
+      if (draggedIndex !== null && draggedIndex !== dropIndex) {
+        // Reorder segments
+        const draggedSegment = currentState.audioSegments[draggedIndex];
+        currentState.audioSegments.splice(draggedIndex, 1);
+        currentState.audioSegments.splice(dropIndex, 0, draggedSegment);
+        
+        console.log(`Moved segment ${draggedIndex} to ${dropIndex}`);
+        
+        // Re-render
+        showAudioResult();
+      }
+      
+      draggedIndex = null;
+    });
+  });
+  
+  // ===== NEW: Auto-regenerate audio when marks are inserted =====
+  document.querySelectorAll('.insert-mark-btn').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const index = parseInt(e.currentTarget.dataset.segmentIndex);
+      const mark = e.currentTarget.dataset.mark;
+      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      
+      // Insert mark at cursor position
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const before = text.substring(0, start);
+      const after = text.substring(end);
+      
+      textarea.value = before + mark + after;
+      
+      // Move cursor after inserted mark
+      const newPos = start + mark.length;
+      textarea.selectionStart = newPos;
+      textarea.selectionEnd = newPos;
+      textarea.focus();
+      
+      // Auto-trigger regeneration immediately
+      console.log(`マーク「${mark}」を挿入しました。音声を自動再生成します...`);
+      setTimeout(() => {
+        autoRegenerateSegment(index);
+      }, 500);
+    });
   });
 }
 
@@ -3411,6 +3740,9 @@ async function saveTestToFolder(folderId) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存中...';
     
     try {
+      console.log('💾 Saving test with audioSegments:', currentState.audioSegments.length, 'segments');
+      console.log('💾 Saving test with speakers:', JSON.stringify(currentState.speakers, null, 2));
+      
       // Call API to merge audio segments
       const mergeResponse = await axios.post('/api/merge-audio', {
         audioSegments: currentState.audioSegments

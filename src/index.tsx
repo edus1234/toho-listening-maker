@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { getSilenceBase64 } from './silence-base64'
 
 // Type definitions
 type Bindings = {
@@ -1243,6 +1244,21 @@ app.post('/api/generate-audio', async (c) => {
         ssmlInstructions: line.ssmlInstructions,
         ttsEngine: 'google'
       })
+      
+      // Add silence after this segment if pauseAfter > 0
+      if (pauseAfter > 0) {
+        const silenceBase64 = getSilenceBase64(pauseAfter)
+        if (silenceBase64) {
+          console.log(`⏸️ Adding ${pauseAfter}s silence after segment`)
+          audioSegments.push({
+            speaker: 'Silence',
+            audio: silenceBase64,
+            pauseAfter: 0,
+            type: 'silence',
+            text: `[Silence: ${pauseAfter}s]`
+          })
+        }
+      }
     }
     
     // Generate audio for questions if provided
@@ -1270,17 +1286,48 @@ app.post('/api/generate-audio', async (c) => {
           text: questionText
         })
         
+        // Add silence after question
+        if (qPause > 0) {
+          const silenceBase64 = getSilenceBase64(qPause)
+          if (silenceBase64) {
+            console.log(`⏸️ Adding ${qPause}s silence after Question ${i + 1}`)
+            audioSegments.push({
+              speaker: 'Silence',
+              audio: silenceBase64,
+              pauseAfter: 0,
+              type: 'silence',
+              text: `[Silence: ${qPause}s]`
+            })
+          }
+        }
+        
         // Generate audio for each option (already contain labels like "A) Text")
         for (let j = 0; j < question.options.length; j++) {
           const optionText = question.options[j]
           const optionAudio = await generateTTS(optionText, qReaderVoice, qReaderSpeed)
+          const optionPause = j === question.options.length - 1 ? 2.0 : oPause
           audioSegments.push({
             speaker: 'Question Reader',
             audio: optionAudio,
-            pauseAfter: j === question.options.length - 1 ? 2.0 : oPause, // Longer pause after last option
+            pauseAfter: optionPause,
             type: 'option',
             text: optionText
           })
+          
+          // Add silence after option
+          if (optionPause > 0) {
+            const silenceBase64 = getSilenceBase64(optionPause)
+            if (silenceBase64) {
+              console.log(`⏸️ Adding ${optionPause}s silence after Option ${j + 1}`)
+              audioSegments.push({
+                speaker: 'Silence',
+                audio: silenceBase64,
+                pauseAfter: 0,
+                type: 'silence',
+                text: `[Silence: ${optionPause}s]`
+              })
+            }
+          }
         }
       }
     }
@@ -1317,36 +1364,48 @@ app.post('/api/merge-audio', async (c) => {
     // Instead, we'll concatenate the base64 MP3 data and let the client handle it
     // In a real implementation, you'd use a service like FFmpeg API or AWS Lambda
     
-    // Simple concatenation (this works for MP3 files in many cases)
-    let mergedAudioBase64 = ''
+    // NOTE: Simple MP3 concatenation doesn't work well for adding silence
+    // Instead, we return segments as-is and let the client handle playback with delays
+    // For download, we just concatenate the audio data
     
-    for (const segment of audioSegments) {
-      mergedAudioBase64 += segment.audio
-      
-      // Add silence for pause (if pauseAfter > 0)
-      if (segment.pauseAfter && segment.pauseAfter > 0) {
-        // Generate silence MP3 (this is a simplified approach)
-        // In production, use proper audio processing
-        const silenceDuration = Math.floor(segment.pauseAfter * 1000) // convert to ms
-        // For now, we'll skip adding silence programmatically
-        // A proper solution would use ffmpeg or similar
-      }
+    console.log('Merging audio segments:', audioSegments.length);
+    
+    // Prepare merged audio data
+    const mergedSegments = [];
+    
+    for (let i = 0; i < audioSegments.length; i++) {
+      const segment = audioSegments[i];
+      mergedSegments.push(segment.audio);
+      console.log(`Segment ${i}: pauseAfter = ${segment.pauseAfter || 0}s`);
     }
+    
+    // Simple concatenation - this creates a valid MP3
+    const mergedAudioBase64 = mergedSegments.join('');
     
     // Convert base64 to binary
-    const binaryString = atob(mergedAudioBase64)
-    const bytes = new Uint8Array(binaryString.length)
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i)
-    }
-    
-    // Return as MP3 file
-    return new Response(bytes, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Disposition': 'attachment; filename="listening-test.mp3"'
+    try {
+      const binaryString = atob(mergedAudioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
-    })
+      
+      console.log('Successfully merged audio, size:', bytes.length, 'bytes');
+      
+      // Return as MP3 file
+      return new Response(bytes, {
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Disposition': 'attachment; filename="listening-test.mp3"'
+        }
+      });
+    } catch (decodeError: any) {
+      console.error('Base64 decode error:', decodeError);
+      return c.json({ 
+        success: false, 
+        error: `Base64デコードエラー: ${decodeError.message}` 
+      }, 500);
+    }
     
   } catch (error: any) {
     console.error('Audio merging error:', error)
