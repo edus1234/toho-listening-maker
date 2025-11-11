@@ -2300,32 +2300,37 @@ function showAudioResult() {
     btn.addEventListener('click', (e) => {
       isPlayingAll = false; // Disable continuous playback for individual play
       const index = parseInt(e.currentTarget.dataset.index);
-      console.log('🎵 Play button clicked, index:', index);
-      console.log('🎵 audioElements length:', audioElements.length);
-      console.log('🎵 Audio element:', audioElements[index]);
-      console.log('🎵 Audio src:', audioElements[index]?.src);
-      // Stop all others
+      console.log('🎵 Play button clicked, segment index:', index);
+      
+      // Find the audio element with matching data-index (not array index)
+      const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
+      console.log('🎵 Found audio element:', audioElement);
+      console.log('🎵 Audio src:', audioElement?.src);
+      
+      if (!audioElement) {
+        console.error(`❌ Audio element with data-index ${index} not found!`);
+        return;
+      }
+      
+      // Stop all other audio elements
       audioElements.forEach(audio => {
         audio.pause();
         audio.currentTime = 0;
       });
-      // Play selected segment only
-      if (audioElements[index]) {
-        console.log(`🎵 Attempting to play audio ${index}...`);
-        console.log(`🎵 Audio ready state:`, audioElements[index].readyState);
-        console.log(`🎵 Audio src exists:`, !!audioElements[index].src);
-        console.log(`🎵 Audio duration:`, audioElements[index].duration);
-        
-        audioElements[index].play().then(() => {
-          console.log('✅ Audio playing successfully');
-        }).catch(err => {
-          console.error('❌ Play failed:', err);
-          console.error('❌ Error name:', err.name);
-          console.error('❌ Error message:', err.message);
-        });
-      } else {
-        console.error(`❌ Audio element ${index} not found!`);
-      }
+      
+      // Play the selected segment
+      console.log(`🎵 Attempting to play audio segment ${index}...`);
+      console.log(`🎵 Audio ready state:`, audioElement.readyState);
+      console.log(`🎵 Audio src exists:`, !!audioElement.src);
+      console.log(`🎵 Audio duration:`, audioElement.duration);
+      
+      audioElement.play().then(() => {
+        console.log('✅ Audio playing successfully');
+      }).catch(err => {
+        console.error('❌ Play failed:', err);
+        console.error('❌ Error name:', err.name);
+        console.error('❌ Error message:', err.message);
+      });
     });
   });
   
