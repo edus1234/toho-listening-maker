@@ -1,0 +1,22 @@
+{
+  "speakers": [
+    {
+      "name": "Alice",
+      "accent": "US",
+      "gender": "female",
+      "speed": 1.0,
+      "pauseAfter": 1.0
+    }
+  ],
+  "lines": [
+    {
+      "speaker": "Alice",
+      "text": "Hello world",
+      "pauseAfter": 1.0
+    }
+  ],
+  "narratorSettings": {
+    "language": "en",
+    "gender": "male"
+  }
+}

@@ -2918,12 +2918,9 @@ function showAudioResult() {
       currentState.audioSegments = newSegments;
       console.log(`✅ Total segments after update: ${currentState.audioSegments.length}`);
       
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-check mr-2"></i>ブランクを反映（完了）';
-      
-      setTimeout(() => {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）';
-      }, 2000);
+      // Re-render the screen to update all data-segment-index attributes
+      console.log('🔄 Re-rendering screen to update UI...');
+      showAudioResult();
       
       alert('ブランクの反映が完了しました。ダウンロードできます。');
     } catch (error) {
