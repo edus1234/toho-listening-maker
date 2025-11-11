@@ -2868,6 +2868,19 @@ function showAudioResult() {
         console.log(`  [${idx}] ${seg.speaker} (${seg.type}) - pauseAfter: ${seg.pauseAfter || 0}s`);
       });
       
+      // Read current pauseAfter values from UI input fields before regenerating
+      console.log('📝 Reading pauseAfter values from UI inputs...');
+      const pauseInputs = document.querySelectorAll('.segment-pause-input');
+      pauseInputs.forEach(input => {
+        const segmentIndex = parseInt(input.dataset.segmentIndex);
+        const pauseValue = parseFloat(input.value) || 0;
+        const segment = currentState.audioSegments[segmentIndex];
+        if (segment && segment.type !== 'silence') {
+          segment.pauseAfter = pauseValue;
+          console.log(`  📝 Updated segment ${segmentIndex} (${segment.speaker}): pauseAfter = ${pauseValue}s`);
+        }
+      });
+      
       // Insert new silence segments based on current pauseAfter values
       const newSegments = [];
       for (let i = 0; i < currentState.audioSegments.length; i++) {
