@@ -2673,7 +2673,7 @@ function showAudioResult() {
       }
   }
   
-  // Download MP3 button
+  // Download MP3 button - Using Web Audio API for proper MP3 concatenation
   document.getElementById('downloadMp3Button').addEventListener('click', async () => {
     const btn = document.getElementById('downloadMp3Button');
     btn.disabled = true;
@@ -2682,16 +2682,66 @@ function showAudioResult() {
     console.log('🎵 Downloading MP3 with audioSegments:', currentState.audioSegments.length, 'segments');
     
     try {
-      // Call API to merge audio segments
-      const response = await axios.post('/api/merge-audio', {
-        audioSegments: currentState.audioSegments
-      }, { responseType: 'blob' });
+      // Use Web Audio API to properly decode and concatenate MP3 files
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffers = [];
       
-      // Download the merged MP3
-      const url = window.URL.createObjectURL(response.data);
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>デコード中...';
+      
+      // Decode all segments
+      for (let i = 0; i < currentState.audioSegments.length; i++) {
+        const segment = currentState.audioSegments[i];
+        const base64Audio = segment.audio;
+        
+        // Convert base64 to ArrayBuffer
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let j = 0; j < binaryString.length; j++) {
+          bytes[j] = binaryString.charCodeAt(j);
+        }
+        
+        // Decode MP3 to AudioBuffer
+        try {
+          const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+          audioBuffers.push(audioBuffer);
+          console.log(`✅ Decoded segment ${i+1}/${currentState.audioSegments.length}: ${audioBuffer.duration.toFixed(2)}s`);
+        } catch (decodeError) {
+          console.error(`❌ Failed to decode segment ${i}:`, decodeError);
+          throw new Error(`セグメント ${i+1} のデコードに失敗しました`);
+        }
+      }
+      
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>連結中...';
+      
+      // Calculate total length
+      const totalLength = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+      const totalDuration = audioBuffers.reduce((sum, buf) => sum + buf.duration, 0);
+      console.log(`📊 Total duration: ${totalDuration.toFixed(2)}s, Total samples: ${totalLength}`);
+      
+      // Create a single merged AudioBuffer
+      const numberOfChannels = audioBuffers[0].numberOfChannels;
+      const sampleRate = audioBuffers[0].sampleRate;
+      const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+      
+      // Copy all audio data into merged buffer
+      let offset = 0;
+      for (const buffer of audioBuffers) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          mergedBuffer.getChannelData(channel).set(buffer.getChannelData(channel), offset);
+        }
+        offset += buffer.length;
+      }
+      
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>エンコード中...';
+      
+      // Convert AudioBuffer to WAV (we'll use WAV instead of MP3 for now)
+      const wavBlob = audioBufferToWav(mergedBuffer);
+      
+      // Download the merged audio
+      const url = window.URL.createObjectURL(wavBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'listening-test-' + Date.now() + '.mp3';
+      a.download = 'listening-test-' + Date.now() + '.wav';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -2699,12 +2749,65 @@ function showAudioResult() {
       
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
+      
+      console.log('✅ Download complete');
     } catch (error) {
+      console.error('MP3結合エラー:', error);
       alert('MP3結合エラー: ' + error.message);
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
     }
   });
+  
+  // Helper function to convert AudioBuffer to WAV Blob
+  function audioBufferToWav(buffer) {
+    const length = buffer.length * buffer.numberOfChannels * 2;
+    const arrayBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(arrayBuffer);
+    const channels = [];
+    let offset = 0;
+    let pos = 0;
+    
+    // Write WAV header
+    const setUint16 = (data) => { view.setUint16(pos, data, true); pos += 2; };
+    const setUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
+    
+    // "RIFF" chunk descriptor
+    setUint32(0x46464952); // "RIFF"
+    setUint32(36 + length); // file length - 8
+    setUint32(0x45564157); // "WAVE"
+    
+    // "fmt " sub-chunk
+    setUint32(0x20746d66); // "fmt "
+    setUint32(16); // fmt chunk size
+    setUint16(1); // audio format (1 = PCM)
+    setUint16(buffer.numberOfChannels);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * buffer.numberOfChannels * 2); // byte rate
+    setUint16(buffer.numberOfChannels * 2); // block align
+    setUint16(16); // bits per sample
+    
+    // "data" sub-chunk
+    setUint32(0x61746164); // "data"
+    setUint32(length);
+    
+    // Write audio data
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+    
+    while (pos < arrayBuffer.byteLength) {
+      for (let i = 0; i < buffer.numberOfChannels; i++) {
+        let sample = channels[i][offset];
+        sample = Math.max(-1, Math.min(1, sample));
+        view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        pos += 2;
+      }
+      offset++;
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  }
   
   // Pause/blank input change handler
   document.querySelectorAll('.segment-pause-input').forEach(input => {
