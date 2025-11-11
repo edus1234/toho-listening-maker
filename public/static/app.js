@@ -2858,7 +2858,7 @@ function showAudioResult() {
         console.log(`  [${idx}] ${seg.speaker} (${seg.type}) - pauseAfter: ${seg.pauseAfter || 0}s`);
       });
       
-      // Remove all existing silence segments
+      // STEP 1: Remove all existing silence segments FIRST
       currentState.audioSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
       console.log(`✅ Removed old silence segments. Remaining: ${currentState.audioSegments.length} segments`);
       
@@ -2868,16 +2868,19 @@ function showAudioResult() {
         console.log(`  [${idx}] ${seg.speaker} (${seg.type}) - pauseAfter: ${seg.pauseAfter || 0}s`);
       });
       
-      // Read current pauseAfter values from UI input fields before regenerating
+      // STEP 2: Read current pauseAfter values from UI input fields (now without silence segments)
+      // We need to map visible segment display index to actual array index after silence removal
       console.log('📝 Reading pauseAfter values from UI inputs...');
       const pauseInputs = document.querySelectorAll('.segment-pause-input');
-      pauseInputs.forEach(input => {
-        const segmentIndex = parseInt(input.dataset.segmentIndex);
+      const visibleSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
+      
+      pauseInputs.forEach((input, displayIndex) => {
         const pauseValue = parseFloat(input.value) || 0;
-        const segment = currentState.audioSegments[segmentIndex];
-        if (segment && segment.type !== 'silence') {
+        // Use displayIndex to access the correct visible segment
+        const segment = visibleSegments[displayIndex];
+        if (segment) {
           segment.pauseAfter = pauseValue;
-          console.log(`  📝 Updated segment ${segmentIndex} (${segment.speaker}): pauseAfter = ${pauseValue}s`);
+          console.log(`  📝 Updated visible segment ${displayIndex} (${segment.speaker}): pauseAfter = ${pauseValue}s`);
         }
       });
       
