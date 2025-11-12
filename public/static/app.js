@@ -1851,12 +1851,41 @@ function playNextSegment() {
 function showAudioResult() {
   const appContainer = document.getElementById('app');
   
-  // Filter out silence segments from display (but keep them for download)
-  const visibleSegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
-  
-  const segmentsHTML = visibleSegments.map((segment, displayIndex) => {
-    // Find original index in currentState.audioSegments
-    const index = currentState.audioSegments.indexOf(segment);
+  // Display ALL segments including silence blocks
+  const segmentsHTML = currentState.audioSegments.map((segment, index) => {
+    // If this is a SILENCE BLOCK
+    if (segment.type === 'silence') {
+      const duration = segment.pauseAfter || segment.duration || 0;
+      return `
+        <div class="mb-3 border-l-4 border-gray-400 pl-3 py-3 bg-gray-100 rounded" data-segment-index="${index}">
+          <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 w-8 h-8 bg-gray-300 rounded flex items-center justify-center">
+              <i class="fas fa-pause text-gray-600"></i>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-700">⏸️ ブランク（間隔）</span>
+                <input type="number" min="0.5" max="10" step="0.5" value="${duration}"
+                       class="blank-duration-input w-20 px-2 py-1 text-sm border border-gray-400 rounded focus:ring-2 focus:ring-gray-500"
+                       data-segment-index="${index}">
+                <span class="text-xs text-gray-600">秒</span>
+                <button class="delete-blank-btn ml-auto px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600" data-segment-index="${index}">
+                  <i class="fas fa-trash mr-1"></i>削除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // If this is an AUDIO BLOCK (発言ブロック)
+    const typeIcon = segment.type === 'narration' ? '📖' : 
+                    segment.type === 'question' ? '❓' :
+                    segment.type === 'option' ? '📝' : '💬';
+    const typeColor = segment.type === 'narration' ? 'purple' : 
+                     segment.type === 'question' ? 'orange' :
+                     segment.type === 'option' ? 'yellow' : 'blue';
     
     const typeIcon = segment.type === 'narration' ? '📖' : 
                     segment.type === 'question' ? '❓' :
@@ -1870,10 +1899,10 @@ function showAudioResult() {
         <div class="flex items-start gap-2">
           <!-- Move up/down buttons -->
           <div class="flex flex-col gap-1">
-            <button class="move-segment-up-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${displayIndex === 0 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${displayIndex === 0 ? 'disabled' : ''} title="上に移動">
+            <button class="move-segment-up-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === 0 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === 0 ? 'disabled' : ''} title="上に移動">
               <i class="fas fa-chevron-up"></i>
             </button>
-            <button class="move-segment-down-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${displayIndex === visibleSegments.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${displayIndex === visibleSegments.length - 1 ? 'disabled' : ''} title="下に移動">
+            <button class="move-segment-down-btn px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs flex-shrink-0 ${index === currentState.audioSegments.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}" data-index="${index}" ${index === currentState.audioSegments.length - 1 ? 'disabled' : ''} title="下に移動">
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
@@ -1918,7 +1947,7 @@ function showAudioResult() {
                 placeholder="セリフを編集...">${segment.text || ''}</textarea>
             </div>
             
-            <!-- Speed and Pause controls -->
+            <!-- Speed control and Add Blank button -->
             <div class="flex items-center gap-4 mt-2">
               <!-- Speed control -->
               <div class="flex items-center gap-2">
@@ -1928,13 +1957,10 @@ function showAudioResult() {
                        data-segment-index="${index}">
                 <span class="text-xs text-gray-700 font-mono segment-speed-value">${(segment.overallSpeed || 1.0).toFixed(2)}x</span>
               </div>
-              <!-- Pause control -->
-              <div class="flex items-center gap-2">
-                <label class="text-xs text-gray-600">後のブランク（秒）:</label>
-                <input type="number" min="0" max="10" step="0.5" value="${segment.pauseAfter || 0}"
-                       class="segment-pause-input w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-                       data-segment-index="${index}">
-              </div>
+              <!-- Add Blank button -->
+              <button class="add-blank-after-btn px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600" data-segment-index="${index}">
+                <i class="fas fa-plus mr-1"></i>後にブランクを追加
+              </button>
             </div>
             
             ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono bg-purple-50 p-1 rounded">適用済み音声調整: ${segment.ssmlInstructions}</div>` : ''}
@@ -2015,11 +2041,16 @@ function showAudioResult() {
         <div class="mb-4">
           <p class="text-green-800 mb-2 flex items-center font-semibold">
             <i class="fas fa-check-circle mr-2"></i>
-            音声ファイルが正常に生成されました（${visibleSegments.length}セグメント）
+            音声ファイルが正常に生成されました（${currentState.audioSegments.filter(s => s.type !== 'silence').length}発言、${currentState.audioSegments.filter(s => s.type === 'silence').length}ブランク）
           </p>
           <p class="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded p-3 mt-2">
             <i class="fas fa-info-circle mr-1 text-blue-600"></i>
-            <strong>編集方法：</strong>セリフのテキストは直接編集できます。音声調整のマークを挿入すると、自動的に音声が再生成されます。セグメントの順序を変更するには、ドラッグ＆ドロップするか、上下の矢印ボタンを使用してください。
+            <strong>編集方法：</strong>
+            <ul class="list-disc list-inside mt-1 space-y-1">
+              <li><strong>発言ブロック</strong>: セリフのテキストを直接編集できます。「後にブランクを追加」ボタンでブランクを挿入できます。</li>
+              <li><strong>ブランクブロック</strong>: 秒数を入力して間隔を調整します。削除ボタンで削除できます。</li>
+              <li><strong>並び替え</strong>: ドラッグ＆ドロップまたは上下矢印ボタンで順序を変更できます。</li>
+            </ul>
           </p>
         </div>
         
@@ -2047,16 +2078,7 @@ function showAudioResult() {
         </div>
       </div>
       
-      <div class="mb-4 bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
-        <p class="text-sm text-blue-800 mb-2 font-semibold">
-          <i class="fas fa-info-circle mr-1"></i>
-          ブランク（間隔）を変更した場合は、ダウンロード前に「ブランクを反映」ボタンをクリックしてください
-        </p>
-        <button id="updateBlanksButton"
-                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
-          <i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）
-        </button>
-      </div>
+
       
       <div class="flex gap-4 mb-4">
         <button id="downloadMp3Button"
@@ -2843,26 +2865,93 @@ function showAudioResult() {
     return new Blob([arrayBuffer], { type: 'audio/wav' });
   }
   
-  // Pause/blank input change handler
-  document.querySelectorAll('.segment-pause-input').forEach(input => {
-    input.addEventListener('change', (e) => {
+  // Blank duration input change handler (for silence blocks)
+  document.querySelectorAll('.blank-duration-input').forEach(input => {
+    input.addEventListener('change', async (e) => {
       const index = parseInt(e.target.dataset.segmentIndex);
-      const pauseValue = parseFloat(e.target.value) || 0;
+      const newDuration = parseFloat(e.target.value) || 0.5;
       
-      // Find the actual non-silence segment
       const segment = currentState.audioSegments[index];
-      if (segment && segment.type !== 'silence') {
-        segment.pauseAfter = pauseValue;
-        console.log(`✅ ブランク更新: セグメント${index} (${segment.speaker}) → ${pauseValue}秒`);
-        console.log(`   セグメントタイプ: ${segment.type}`);
-      } else {
-        console.error(`❌ セグメント${index}が見つからないか、サイレンスセグメントです`);
+      if (segment && segment.type === 'silence') {
+        console.log(`🔄 Updating blank duration at index ${index}: ${newDuration}s`);
+        
+        // Get new silence audio from backend
+        try {
+          const silenceResponse = await axios.post('/api/generate-silence', {
+            duration: newDuration
+          });
+          
+          if (silenceResponse.data.success) {
+            segment.audio = silenceResponse.data.silenceBase64;
+            segment.duration = newDuration;
+            segment.pauseAfter = newDuration;
+            segment.text = `[Silence: ${newDuration}s]`;
+            console.log(`✅ Updated blank block at index ${index} to ${newDuration}s`);
+          }
+        } catch (error) {
+          console.error('❌ Failed to update blank:', error);
+          alert('ブランクの更新に失敗しました');
+        }
       }
     });
   });
   
-  // Update blanks button - Regenerate silence segments based on current pauseAfter values
-  document.getElementById('updateBlanksButton').addEventListener('click', async () => {
+  // Add blank after audio segment button
+  document.querySelectorAll('.add-blank-after-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      console.log(`➕ Adding blank after segment ${index}`);
+      
+      try {
+        // Get silence audio
+        const silenceResponse = await axios.post('/api/generate-silence', {
+          duration: 1.0  // Default 1 second
+        });
+        
+        if (silenceResponse.data.success) {
+          // Insert blank block after this segment
+          const blankBlock = {
+            speaker: 'Silence',
+            audio: silenceResponse.data.silenceBase64,
+            pauseAfter: 1.0,
+            duration: 1.0,
+            type: 'silence',
+            text: '[Silence: 1.0s]'
+          };
+          
+          currentState.audioSegments.splice(index + 1, 0, blankBlock);
+          console.log(`✅ Added blank block after segment ${index}`);
+          
+          // Re-render
+          showAudioResult();
+        }
+      } catch (error) {
+        console.error('❌ Failed to add blank:', error);
+        alert('ブランクの追加に失敗しました');
+      }
+    });
+  });
+  
+  // Delete blank button
+  document.querySelectorAll('.delete-blank-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.segmentIndex);
+      const segment = currentState.audioSegments[index];
+      
+      if (segment && segment.type === 'silence') {
+        if (confirm('このブランクを削除しますか？')) {
+          console.log(`🗑️ Deleting blank at index ${index}`);
+          currentState.audioSegments.splice(index, 1);
+          showAudioResult();
+        }
+      }
+    });
+  });
+  
+  // Old update blanks button handler (now deprecated, kept for backward compatibility)
+  const updateBlanksBtn = document.getElementById('updateBlanksButton');
+  if (updateBlanksBtn) {
+    updateBlanksBtn.addEventListener('click', async () => {
     const btn = document.getElementById('updateBlanksButton');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>サイレンスを再生成中...';
