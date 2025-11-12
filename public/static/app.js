@@ -1887,13 +1887,6 @@ function showAudioResult() {
                      segment.type === 'question' ? 'orange' :
                      segment.type === 'option' ? 'yellow' : 'blue';
     
-    const typeIcon = segment.type === 'narration' ? '📖' : 
-                    segment.type === 'question' ? '❓' :
-                    segment.type === 'option' ? '📝' : '💬';
-    const typeColor = segment.type === 'narration' ? 'purple' : 
-                     segment.type === 'question' ? 'orange' :
-                     segment.type === 'option' ? 'yellow' : 'blue';
-    
     return `
       <div class="mb-3 border-l-4 border-${typeColor}-500 pl-3 py-2 bg-gray-50 rounded draggable-segment cursor-move" data-segment-index="${index}" draggable="true">
         <div class="flex items-start gap-2">
@@ -3040,6 +3033,7 @@ function showAudioResult() {
       btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>ブランクを反映（サイレンス再生成）';
     }
   });
+  }
   
   // Save to folder button
   document.getElementById('saveToFolderButton').addEventListener('click', async () => {
