@@ -470,9 +470,9 @@ pm2 delete webapp
 
 ### 本番環境
 - **ステータス**: ✅ 稼働中
-- **最終更新**: 2025-11-12 (v2.4)
+- **最終更新**: 2025-11-12 (v2.4.1 - ブランク反映修正)
 - **URL**: **https://toho-listening-maker.pages.dev** (メインドメイン)
-- **最新デプロイ**: https://a8316f3b.toho-listening-maker.pages.dev
+- **最新デプロイ**: https://63229a14.toho-listening-maker.pages.dev
 - **データベース**: Cloudflare D1 (toho-listening-db)
 - **API Keys**: OpenAI & Google TTS設定済み
 
@@ -522,6 +522,21 @@ npx wrangler d1 execute toho-listening-db --remote --file=./seed.sql
 - **スムーズなアニメーション**: フェードイン効果で心地よい遷移
 
 ## 🔧 主な修正履歴
+
+### v2.4.1 - ブランクMP3反映修正 (2025-11-12) 🔧
+- ✅ **pauseAfter値の同期**: 
+  - ブランク秒数を変更した時、前の音声セグメントのpauseAfter値を同時に更新
+  - 「ブランクを反映」ボタンで、silenceセグメント再生成時にもpauseAfter値を更新
+  - ブランク削除時、前の音声セグメントのpauseAfter値を0に設定
+  - ブランク追加時、音声セグメントのpauseAfter値を新しいブランク秒数に設定
+- ✅ **MP3ダウンロード時のデバッグログ追加**: 
+  - 各セグメントのpauseAfter値をコンソールに出力
+  - バックエンドに送信される値を確認可能
+- ✅ **根本原因の解決**: 
+  - MP3ダウンロードはバックエンドで音声セグメントのpauseAfter値を使ってブランクを挿入
+  - UI上のブランクブロック秒数変更が、音声セグメントのpauseAfter値に反映されていなかった
+  - 今回の修正で、全ての操作で音声セグメントとブランクブロックが完全に同期
+- ✅ **コミット**: `610009f`
 
 ### v2.4 - ブランク管理改善 (2025-11-12) 🆕
 - ✅ **「ブランクを反映」ボタン追加**: 
