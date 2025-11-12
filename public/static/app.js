@@ -324,8 +324,7 @@ function renderNationalitySelectors(numSpeakers, speakerSettings) {
     { value: 'Canadian', label: 'カナダ' },
     { value: 'Indian', label: 'インド' },
     { value: 'Irish', label: 'アイルランド' },
-    { value: 'Scottish', label: 'スコットランド' },
-    { value: 'Japanese', label: '日本語なまり英語' }
+    { value: 'Scottish', label: 'スコットランド' }
   ];
   
   const genderOptions = [
@@ -1222,7 +1221,6 @@ function renderReviewScreen() {
               <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
               <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
               <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
-              <option value="Japanese" ${(currentState.narratorSettings?.accent || 'US') === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
             </select>
           </div>
           <div>
@@ -1453,7 +1451,6 @@ function renderSpeakerSettingsScreen() {
             <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド</option>
             <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド</option>
             <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド</option>
-            <option value="Japanese" ${speaker.accent === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
           </select>
         </div>
         <div>
@@ -1503,7 +1500,6 @@ function renderSpeakerSettingsScreen() {
             <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
             <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
             <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
-            <option value="Japanese" ${(currentState.narratorSettings?.accent || 'US') === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
           </select>
         </div>
         <div>

@@ -903,42 +903,6 @@ const getGoogleTTSVoice = (accent: string, gender: string = 'male', voiceStyle: 
           ssml: 'en-GB-Standard-A'
         }
       }
-    },
-    'Japanese': {
-      'male': {
-        'neutral': { 
-          languageCode: 'ja-JP', 
-          standard: 'ja-JP-Standard-D',
-          ssml: 'ja-JP-Wavenet-D'
-        },
-        'warm': {
-          languageCode: 'ja-JP',
-          standard: 'ja-JP-Standard-C',
-          ssml: 'ja-JP-Wavenet-C'
-        },
-        'calm': {
-          languageCode: 'ja-JP',
-          standard: 'ja-JP-Standard-D',
-          ssml: 'ja-JP-Wavenet-D'
-        }
-      },
-      'female': {
-        'neutral': { 
-          languageCode: 'ja-JP', 
-          standard: 'ja-JP-Standard-A',
-          ssml: 'ja-JP-Wavenet-A'
-        },
-        'warm': {
-          languageCode: 'ja-JP',
-          standard: 'ja-JP-Standard-B',
-          ssml: 'ja-JP-Wavenet-B'
-        },
-        'calm': {
-          languageCode: 'ja-JP',
-          standard: 'ja-JP-Standard-A',
-          ssml: 'ja-JP-Wavenet-A'
-        }
-      }
     }
   }
   return voiceMap[accent]?.[gender]?.[voiceStyle] || voiceMap['US']?.['male']?.['neutral'] || voiceMap['US']['male']['neutral']
