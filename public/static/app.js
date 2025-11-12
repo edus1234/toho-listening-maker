@@ -324,7 +324,8 @@ function renderNationalitySelectors(numSpeakers, speakerSettings) {
     { value: 'Canadian', label: 'カナダ' },
     { value: 'Indian', label: 'インド' },
     { value: 'Irish', label: 'アイルランド' },
-    { value: 'Scottish', label: 'スコットランド' }
+    { value: 'Scottish', label: 'スコットランド' },
+    { value: 'Japanese', label: '日本語なまり英語' }
   ];
   
   const genderOptions = [
@@ -1221,6 +1222,7 @@ function renderReviewScreen() {
               <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
               <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
               <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+              <option value="Japanese" ${(currentState.narratorSettings?.accent || 'US') === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
             </select>
           </div>
           <div>
@@ -1451,6 +1453,7 @@ function renderSpeakerSettingsScreen() {
             <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド</option>
             <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド</option>
             <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+            <option value="Japanese" ${speaker.accent === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
           </select>
         </div>
         <div>
@@ -1500,6 +1503,7 @@ function renderSpeakerSettingsScreen() {
             <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
             <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
             <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
+            <option value="Japanese" ${(currentState.narratorSettings?.accent || 'US') === 'Japanese' ? 'selected' : ''}>日本語なまり英語</option>
           </select>
         </div>
         <div>
@@ -2072,6 +2076,17 @@ function showAudioResult() {
       </div>
       
 
+      
+      <div class="mb-4">
+        <button id="applyBlanksButton"
+                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+          <i class="fas fa-sync-alt mr-2"></i>ブランクを反映（変更を適用）
+        </button>
+        <p class="text-xs text-gray-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          ブランクの秒数を変更した場合は、このボタンをクリックしてください。すべてのブランクが最新の設定で再生成されます。
+        </p>
+      </div>
       
       <div class="flex gap-4 mb-4">
         <button id="downloadMp3Button"
@@ -2859,34 +2874,68 @@ function showAudioResult() {
   }
   
   // Blank duration input change handler (for silence blocks)
+  // Note: Only updates the UI value, actual audio regeneration happens when clicking "Apply Blanks" button
   document.querySelectorAll('.blank-duration-input').forEach(input => {
-    input.addEventListener('change', async (e) => {
+    input.addEventListener('change', (e) => {
       const index = parseInt(e.target.dataset.segmentIndex);
       const newDuration = parseFloat(e.target.value) || 0.5;
       
       const segment = currentState.audioSegments[index];
       if (segment && segment.type === 'silence') {
-        console.log(`🔄 Updating blank duration at index ${index}: ${newDuration}s`);
+        console.log(`📝 Marking blank at index ${index} for update: ${newDuration}s`);
+        segment.duration = newDuration;
+        segment.pauseAfter = newDuration;
+        segment.text = `[Silence: ${newDuration}s]`;
+        // Mark as modified (will be regenerated when Apply Blanks is clicked)
+        segment._modified = true;
+      }
+    });
+  });
+  
+  // Apply Blanks button - Regenerate all modified blank blocks
+  document.getElementById('applyBlanksButton').addEventListener('click', async () => {
+    const btn = document.getElementById('applyBlanksButton');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ブランクを再生成中...';
+    
+    try {
+      console.log('🔄 Applying blank changes...');
+      
+      let regeneratedCount = 0;
+      
+      // Regenerate all silence blocks with their current duration values
+      for (let i = 0; i < currentState.audioSegments.length; i++) {
+        const segment = currentState.audioSegments[i];
         
-        // Get new silence audio from backend
-        try {
+        if (segment.type === 'silence') {
+          const duration = segment.duration || segment.pauseAfter || 0.5;
+          console.log(`⏸️ Regenerating silence at index ${i}: ${duration}s`);
+          
           const silenceResponse = await axios.post('/api/generate-silence', {
-            duration: newDuration
+            duration: duration
           });
           
           if (silenceResponse.data.success) {
             segment.audio = silenceResponse.data.silenceBase64;
-            segment.duration = newDuration;
-            segment.pauseAfter = newDuration;
-            segment.text = `[Silence: ${newDuration}s]`;
-            console.log(`✅ Updated blank block at index ${index} to ${newDuration}s`);
+            segment.duration = duration;
+            segment.pauseAfter = duration;
+            segment.text = `[Silence: ${duration}s]`;
+            segment._modified = false;
+            regeneratedCount++;
           }
-        } catch (error) {
-          console.error('❌ Failed to update blank:', error);
-          alert('ブランクの更新に失敗しました');
         }
       }
-    });
+      
+      console.log(`✅ Regenerated ${regeneratedCount} blank blocks`);
+      alert(`ブランクの反映が完了しました（${regeneratedCount}個のブランクを更新）`);
+      
+    } catch (error) {
+      console.error('❌ Failed to apply blanks:', error);
+      alert('ブランクの反映に失敗しました: ' + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>ブランクを反映（変更を適用）';
+    }
   });
   
   // Add blank after audio segment button

@@ -903,6 +903,42 @@ const getGoogleTTSVoice = (accent: string, gender: string = 'male', voiceStyle: 
           ssml: 'en-GB-Standard-A'
         }
       }
+    },
+    'Japanese': {
+      'male': {
+        'neutral': { 
+          languageCode: 'ja-JP', 
+          standard: 'ja-JP-Standard-D',
+          ssml: 'ja-JP-Wavenet-D'
+        },
+        'warm': {
+          languageCode: 'ja-JP',
+          standard: 'ja-JP-Standard-C',
+          ssml: 'ja-JP-Wavenet-C'
+        },
+        'calm': {
+          languageCode: 'ja-JP',
+          standard: 'ja-JP-Standard-D',
+          ssml: 'ja-JP-Wavenet-D'
+        }
+      },
+      'female': {
+        'neutral': { 
+          languageCode: 'ja-JP', 
+          standard: 'ja-JP-Standard-A',
+          ssml: 'ja-JP-Wavenet-A'
+        },
+        'warm': {
+          languageCode: 'ja-JP',
+          standard: 'ja-JP-Standard-B',
+          ssml: 'ja-JP-Wavenet-B'
+        },
+        'calm': {
+          languageCode: 'ja-JP',
+          standard: 'ja-JP-Standard-A',
+          ssml: 'ja-JP-Wavenet-A'
+        }
+      }
     }
   }
   return voiceMap[accent]?.[gender]?.[voiceStyle] || voiceMap['US']?.['male']?.['neutral'] || voiceMap['US']['male']['neutral']
@@ -1245,17 +1281,22 @@ app.post('/api/generate-audio', async (c) => {
         ttsEngine: 'google'
       })
       
-      // Add silence after this segment if pauseAfter > 0
-      if (pauseAfter > 0) {
-        const silenceBase64 = getSilenceBase64(pauseAfter)
+      // Add default 0.5s silence after dialogue segments (not narration/question/option)
+      const shouldAddDefaultBlank = (line.type === 'dialogue' || !line.type) && pauseAfter === 0
+      const finalPauseAfter = shouldAddDefaultBlank ? 0.5 : pauseAfter
+      
+      // Add silence after this segment if pauseAfter > 0 or default blank
+      if (finalPauseAfter > 0) {
+        const silenceBase64 = getSilenceBase64(finalPauseAfter)
         if (silenceBase64) {
-          console.log(`⏸️ Adding ${pauseAfter}s silence after segment`)
+          console.log(`⏸️ Adding ${finalPauseAfter}s silence after segment${shouldAddDefaultBlank ? ' (default)' : ''}`)
           audioSegments.push({
             speaker: 'Silence',
             audio: silenceBase64,
-            pauseAfter: 0,
+            pauseAfter: finalPauseAfter,
+            duration: finalPauseAfter,
             type: 'silence',
-            text: `[Silence: ${pauseAfter}s]`
+            text: `[Silence: ${finalPauseAfter}s]`
           })
         }
       }
