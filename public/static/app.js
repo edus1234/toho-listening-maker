@@ -2731,6 +2731,11 @@ function showAudioResult() {
       const audioOnlySegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
       console.log(`📤 Sending ${audioOnlySegments.length} audio segments to backend (excluding existing silence)`);
       
+      // Debug: Log pauseAfter values
+      audioOnlySegments.forEach((seg, idx) => {
+        console.log(`  Segment ${idx}: ${seg.speaker} - pauseAfter: ${seg.pauseAfter}s`);
+      });
+      
       const mergeResponse = await axios.post('/api/merge-audio', {
         audioSegments: audioOnlySegments
       });
@@ -2884,6 +2889,14 @@ function showAudioResult() {
         segment.text = `[Silence: ${newDuration}s]`;
         // Mark as modified (will be regenerated when Apply Blanks is clicked)
         segment._modified = true;
+        
+        // IMPORTANT: Also update pauseAfter of the previous audio segment
+        // This ensures the correct blank duration is used in MP3 download
+        if (index > 0 && currentState.audioSegments[index - 1].type !== 'silence') {
+          const prevSegment = currentState.audioSegments[index - 1];
+          console.log(`🔗 Immediately updating pauseAfter of ${prevSegment.speaker} to ${newDuration}s`);
+          prevSegment.pauseAfter = newDuration;
+        }
       }
     });
   });
@@ -2918,6 +2931,14 @@ function showAudioResult() {
             segment.text = `[Silence: ${duration}s]`;
             segment._modified = false;
             regeneratedCount++;
+            
+            // CRITICAL: Update pauseAfter of the previous audio segment
+            // This ensures MP3 download uses the correct blank duration
+            if (i > 0 && currentState.audioSegments[i - 1].type !== 'silence') {
+              const prevSegment = currentState.audioSegments[i - 1];
+              console.log(`🔗 Updating pauseAfter of ${prevSegment.speaker} from ${prevSegment.pauseAfter}s to ${duration}s`);
+              prevSegment.pauseAfter = duration;
+            }
           }
         }
       }
@@ -2960,6 +2981,13 @@ function showAudioResult() {
           currentState.audioSegments.splice(index + 1, 0, blankBlock);
           console.log(`✅ Added blank block after segment ${index}`);
           
+          // IMPORTANT: Set pauseAfter of this audio segment to match the blank duration
+          const audioSegment = currentState.audioSegments[index];
+          if (audioSegment && audioSegment.type !== 'silence') {
+            console.log(`🔗 Setting pauseAfter of ${audioSegment.speaker} to 1.0s`);
+            audioSegment.pauseAfter = 1.0;
+          }
+          
           // Re-render
           showAudioResult();
         }
@@ -2979,6 +3007,14 @@ function showAudioResult() {
       if (segment && segment.type === 'silence') {
         if (confirm('このブランクを削除しますか？')) {
           console.log(`🗑️ Deleting blank at index ${index}`);
+          
+          // IMPORTANT: Set pauseAfter of the previous audio segment to 0
+          if (index > 0 && currentState.audioSegments[index - 1].type !== 'silence') {
+            const prevSegment = currentState.audioSegments[index - 1];
+            console.log(`🔗 Setting pauseAfter of ${prevSegment.speaker} to 0 (blank deleted)`);
+            prevSegment.pauseAfter = 0;
+          }
+          
           currentState.audioSegments.splice(index, 1);
           showAudioResult();
         }
