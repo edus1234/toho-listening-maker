@@ -1138,6 +1138,7 @@ app.post('/api/generate-audio', async (c) => {
       
       console.log('📤 TTS Request:', JSON.stringify(ttsRequest, null, 2))
       console.log('🎤 Voice Name Used:', voiceName, '| Language:', voiceConfig.languageCode)
+      console.log('📝 Text length:', ttsRequest.input.text?.length || ttsRequest.input.ssml?.length || 0, 'characters')
       
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
@@ -1148,16 +1149,26 @@ app.post('/api/generate-audio', async (c) => {
         }
       )
       
+      console.log('📥 TTS Response status:', response.status, response.statusText)
+      
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('Google TTS error:', errorData)
+        console.error('❌ Google TTS error response:', JSON.stringify(errorData, null, 2))
+        console.error('❌ Response status:', response.status, response.statusText)
         
         // Check for quota exhausted error
         if (errorData.error?.code === 429 || errorData.error?.status === 'RESOURCE_EXHAUSTED') {
-          throw new Error('Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。月1M文字（約1万分の音声）まで無料です。')
+          throw new Error('Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。月100万文字（約1万分の音声）まで無料です。')
         }
         
-        throw new Error(`Google TTS API エラー: ${errorData.error?.message || 'Unknown error'}`)
+        // Check for rate limit error
+        if (response.status === 429) {
+          throw new Error('Google TTS APIのレート制限に達しました。少し時間をおいてから再度お試しください。')
+        }
+        
+        // Generic error with detailed message
+        const errorMessage = errorData.error?.message || errorData.message || 'Unknown error'
+        throw new Error(`Google TTS API エラー (${response.status}): ${errorMessage}`)
       }
       
       const data = await response.json()
@@ -1347,10 +1358,22 @@ app.post('/api/generate-audio', async (c) => {
     })
     
   } catch (error: any) {
-    console.error('Audio generation error:', error)
+    console.error('❌ Audio generation error:', error)
+    console.error('❌ Error stack:', error.stack)
+    
+    // Provide more detailed error message
+    let errorMessage = error.message || 'Unknown error'
+    
+    // Check if it's a quota/limit error
+    if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('無料枠')) {
+      errorMessage = '⚠️ Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。\n月100万文字（約1万分の音声）まで無料です。'
+    } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      errorMessage = '⚠️ Google TTS APIのレート制限に達しました。少し時間をおいてから再度お試しください。'
+    }
+    
     return c.json({ 
       success: false, 
-      error: `音声生成中にエラーが発生しました: ${error.message}` 
+      error: `音声生成中にエラーが発生しました:\n${errorMessage}` 
     }, 500)
   }
 })
