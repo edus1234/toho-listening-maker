@@ -200,7 +200,7 @@ function renderLoginScreen() {
       <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 w-full max-w-md fade-in border border-purple-100">
         <div class="text-center mb-8">
           <!-- Larger, more prominent Toho title -->
-          <h1 class="text-6xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-4 tracking-tight">
+          <h1 class="text-6xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-4 tracking-tight" style="line-height: 1.3; padding-bottom: 0.15em; display: inline-block; -webkit-text-fill-color: transparent;">
             Toho Listening Maker
           </h1>
           <div class="h-1 w-24 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-4"></div>
@@ -3636,7 +3636,7 @@ function renderMenuScreen() {
       <div class="relative bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-12 w-full max-w-4xl fade-in border border-purple-100">
         <div class="text-center mb-12">
           <!-- Larger, more prominent Toho title -->
-          <h1 class="text-7xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-5 tracking-tight">
+          <h1 class="text-7xl font-bold bg-gradient-to-r from-purple-800 via-blue-800 to-indigo-800 bg-clip-text text-transparent mb-5 tracking-tight" style="line-height: 1.3; padding-bottom: 0.15em; display: inline-block; -webkit-text-fill-color: transparent;">
             Toho Listening Maker
           </h1>
           <div class="h-1.5 w-32 mx-auto bg-gradient-to-r from-purple-600 to-blue-600 rounded-full mb-6"></div>
