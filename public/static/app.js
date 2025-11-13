@@ -1865,7 +1865,7 @@ function showAudioResult() {
             <div class="flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-gray-700">⏸️ ブランク（間隔）</span>
-                <input type="number" min="0.5" max="10" step="0.5" value="${duration}"
+                <input type="number" min="0.5" max="60" step="0.5" value="${duration}"
                        class="blank-duration-input w-20 px-2 py-1 text-sm border border-gray-400 rounded focus:ring-2 focus:ring-gray-500"
                        data-segment-index="${index}">
                 <span class="text-xs text-gray-600">秒</span>

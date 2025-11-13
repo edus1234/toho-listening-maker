@@ -10,12 +10,37 @@ export const SILENCE_BASE64: Record<string, string> = {
 }
 
 // Get the closest silence duration Base64 string
+// For durations > 3s, concatenates multiple 3s silences
 export function getSilenceBase64(duration: number): string | null {
   if (duration <= 0) return null
   
-  // Round to nearest available duration
+  // For short durations, use single pre-generated silence
   if (duration <= 0.75) return SILENCE_BASE64['0.5']
   if (duration <= 1.5) return SILENCE_BASE64['1.0']
   if (duration <= 2.5) return SILENCE_BASE64['2.0']
-  return SILENCE_BASE64['3.0']
+  if (duration <= 3.5) return SILENCE_BASE64['3.0']
+  
+  // For longer durations, concatenate multiple 3s silences
+  // This allows unlimited blank duration
+  const fullThreeSecondChunks = Math.floor(duration / 3.0)
+  const remainder = duration % 3.0
+  
+  let concatenated = ''
+  
+  // Add full 3-second chunks
+  for (let i = 0; i < fullThreeSecondChunks; i++) {
+    concatenated += SILENCE_BASE64['3.0']
+  }
+  
+  // Add remainder silence
+  if (remainder > 0) {
+    if (remainder <= 0.75) concatenated += SILENCE_BASE64['0.5']
+    else if (remainder <= 1.5) concatenated += SILENCE_BASE64['1.0']
+    else if (remainder <= 2.5) concatenated += SILENCE_BASE64['2.0']
+    else concatenated += SILENCE_BASE64['3.0']
+  }
+  
+  console.log(`🔊 Generated ${duration}s silence (${fullThreeSecondChunks} x 3s + ${remainder.toFixed(1)}s remainder)`)
+  
+  return concatenated
 }
