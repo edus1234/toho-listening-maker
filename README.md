@@ -486,9 +486,9 @@ pm2 delete webapp
 
 ### 本番環境
 - **ステータス**: ✅ 稼働中
-- **最終更新**: 2025-11-12 (v2.4.3 - エラーハンドリング改善)
+- **最終更新**: 2025-11-12 (v2.4.4 - UI修正)
 - **URL**: **https://toho-listening-maker.pages.dev** (メインドメイン)
-- **最新デプロイ**: https://111b4117.toho-listening-maker.pages.dev
+- **最新デプロイ**: https://6ddf2548.toho-listening-maker.pages.dev
 - **データベース**: Cloudflare D1 (toho-listening-db)
 - **API Keys**: OpenAI & Google TTS設定済み
 
@@ -538,6 +538,14 @@ npx wrangler d1 execute toho-listening-db --remote --file=./seed.sql
 - **スムーズなアニメーション**: フェードイン効果で心地よい遷移
 
 ## 🔧 主な修正履歴
+
+### v2.4.4 - UI修正 (2025-11-12) 🎨
+- ✅ **タイトルテキスト表示修正**: 
+  - グラデーションテキストのディセンダー（gの下部分）が切れる問題を修正
+  - `gradient-text-fix` カスタムCSSクラスを追加
+  - `padding-bottom` と適切な `line-height` を設定
+  - "Toho Listening Maker" が完全に表示されるように
+- ✅ **コミット**: `dc79052`
 
 ### v2.4.3 - エラーハンドリング改善 (2025-11-12) 🔧
 - ✅ **詳細なエラーログ**: 
