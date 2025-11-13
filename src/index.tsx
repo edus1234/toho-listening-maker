@@ -1542,6 +1542,14 @@ app.get('/', (c) => {
         <style>
             .fade-in { animation: fadeIn 0.3s ease-in; }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            /* Fix for gradient text descender clipping */
+            .gradient-text-fix {
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+                display: inline-block;
+                padding-bottom: 0.1em;
+            }
         </style>
     </head>
     <body class="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 min-h-screen">
@@ -1551,7 +1559,7 @@ app.get('/', (c) => {
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         <div>
-                            <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 bg-clip-text text-transparent mb-1">
+                            <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-800 to-blue-800 gradient-text-fix mb-1" style="line-height: 1.3;">
                                 Toho Listening Maker
                             </h1>
                             <p class="text-base text-gray-600 font-medium">桐朋中学校・桐朋高等学校</p>
