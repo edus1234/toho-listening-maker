@@ -486,9 +486,9 @@ pm2 delete webapp
 
 ### 本番環境
 - **ステータス**: ✅ 稼働中
-- **最終更新**: 2025-11-12 (v2.4.4 - UI修正)
+- **最終更新**: 2025-11-12 (v2.4.5 - メニュー画面UI修正)
 - **URL**: **https://toho-listening-maker.pages.dev** (メインドメイン)
-- **最新デプロイ**: https://6ddf2548.toho-listening-maker.pages.dev
+- **最新デプロイ**: https://319f8777.toho-listening-maker.pages.dev
 - **データベース**: Cloudflare D1 (toho-listening-db)
 - **API Keys**: OpenAI & Google TTS設定済み
 
@@ -538,6 +538,16 @@ npx wrangler d1 execute toho-listening-db --remote --file=./seed.sql
 - **スムーズなアニメーション**: フェードイン効果で心地よい遷移
 
 ## 🔧 主な修正履歴
+
+### v2.4.5 - メニュー画面UI修正 (2025-11-12) 🎨
+- ✅ **ログイン＋メニュー画面のタイトル修正**: 
+  - ログイン画面とメインメニュー画面の両方のタイトルを修正
+  - グラデーションテキストのディセンダー（gの下部分）が切れる問題を解決
+  - インラインスタイルで `line-height: 1.3` と `padding-bottom: 0.15em` を設定
+  - `display: inline-block` でパディングを正しく適用
+  - `-webkit-text-fill-color: transparent` でブラウザ互換性を向上
+  - 画面の真ん中の大きな"Toho Listening Maker"のgが完全に表示される
+- ✅ **コミット**: `c69e2a0`
 
 ### v2.4.4 - UI修正 (2025-11-12) 🎨
 - ✅ **タイトルテキスト表示修正**: 
