@@ -47,6 +47,14 @@ app.use('/api/*', cors())
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// Serve favicon at root level
+app.get('/favicon.svg', async (c) => {
+  return c.redirect('/static/favicon.svg')
+})
+app.get('/favicon.ico', async (c) => {
+  return c.redirect('/static/favicon.svg')
+})
+
 // API routes
 app.get('/api/health', (c) => {
   const hasOpenAI = !!c.env?.OPENAI_API_KEY
@@ -1022,17 +1030,29 @@ const generateGeminiTTS = async (text: string, voiceName: string, emotionPrompt:
 
 // Audio generation endpoint
 app.post('/api/generate-audio', async (c) => {
+  console.log('🎵 === /api/generate-audio endpoint called ===')
   try {
+    console.log('🔍 Step 1: Parsing request body...')
     const body = await c.req.json()
     const { script, speakers, parsedLines, questions, questionReader, narratorSettings, useGeminiTTS } = body
     
+    console.log('🔍 Step 2: Validating inputs...')
+    console.log('   - Script length:', script?.length || 0)
+    console.log('   - Speakers count:', speakers?.length || 0)
+    console.log('   - Parsed lines count:', parsedLines?.length || 0)
+    
     if (!script || !speakers || speakers.length === 0) {
+      console.error('❌ Validation failed: Missing script or speakers')
       return c.json({ success: false, error: 'スクリプトまたは話者情報が不足しています' }, 400)
     }
     
+    console.log('🔍 Step 3: Loading API keys...')
     // API keys from environment variables
     const GOOGLE_TTS_API_KEY = c.env?.GOOGLE_TTS_API_KEY || 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
     const GEMINI_API_KEY = c.env?.GEMINI_API_KEY || c.env?.GOOGLE_TTS_API_KEY
+    
+    console.log('   - GOOGLE_TTS_API_KEY:', GOOGLE_TTS_API_KEY ? `${GOOGLE_TTS_API_KEY.substring(0, 10)}...` : 'NOT SET')
+    console.log('   - GEMINI_API_KEY:', GEMINI_API_KEY ? `${GEMINI_API_KEY.substring(0, 10)}...` : 'NOT SET')
     
     // Use parsedLines if provided, otherwise parse script
     let lines = parsedLines && parsedLines.length > 0 ? parsedLines : parseScript(script)
@@ -1185,8 +1205,13 @@ app.post('/api/generate-audio', async (c) => {
       return data.audioContent
     }
     
+    console.log('🔍 Step 4: Starting audio generation for', lines.length, 'lines...')
+    
     // Generate audio for script lines
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex]
+      console.log(`🎤 Processing line ${lineIndex + 1}/${lines.length}: "${line.text?.substring(0, 50)}..."`)
+      
       let voiceConfig: any
       let speakingRate = 1.0
       let pauseAfter = line.pauseAfter !== undefined ? line.pauseAfter : 0
@@ -1253,8 +1278,15 @@ app.post('/api/generate-audio', async (c) => {
       
       console.log(`🎯 Final voice config for line:`, JSON.stringify(voiceConfig))
       
-      // Always use Google TTS with SSML instructions
-      audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
+      console.log(`🎤 Calling TTS API for line ${lineIndex + 1}...`)
+      try {
+        // Always use Google TTS with SSML instructions
+        audioContent = await generateTTS(line.text, voiceConfig, speakingRate, line.ssmlInstructions)
+        console.log(`✅ TTS API call successful for line ${lineIndex + 1}`)
+      } catch (ttsError: any) {
+        console.error(`❌ TTS API call failed for line ${lineIndex + 1}:`, ttsError.message)
+        throw ttsError
+      }
       
       audioSegments.push({
         speaker: line.speaker,
@@ -1287,8 +1319,13 @@ app.post('/api/generate-audio', async (c) => {
       }
     }
     
+    console.log('🔍 Step 5: Checking for questions...')
+    console.log('   - Questions:', questions?.length || 0)
+    console.log('   - Has questionReader:', !!questionReader)
+    
     // Generate audio for questions if provided
     if (questions && questions.length > 0 && questionReader) {
+      console.log('🔍 Step 6: Starting question audio generation...')
       const qReaderVoice = getGoogleTTSVoice(
         questionReader.accent || 'US',
         questionReader.gender || 'male',
@@ -1358,7 +1395,11 @@ app.post('/api/generate-audio', async (c) => {
       }
     }
     
+    console.log('✅ Step 7: All audio generation completed successfully!')
+    console.log('   - Total segments:', audioSegments.length)
+    
     // Return all segments - client will handle playback
+    console.log('🎵 === Returning successful response ===')
     return c.json({
       success: true,
       audioSegments: audioSegments,
@@ -1368,8 +1409,11 @@ app.post('/api/generate-audio', async (c) => {
     })
     
   } catch (error: any) {
+    console.error('❌ === CAUGHT ERROR IN /api/generate-audio ===')
     console.error('❌ Audio generation error:', error)
     console.error('❌ Error stack:', error.stack)
+    console.error('❌ Error name:', error.name)
+    console.error('❌ Error message:', error.message)
     
     // Provide more detailed error message
     let errorMessage = error.message || 'Unknown error'
@@ -1381,6 +1425,7 @@ app.post('/api/generate-audio', async (c) => {
       errorMessage = '⚠️ Google TTS APIのレート制限に達しました。少し時間をおいてから再度お試しください。'
     }
     
+    console.log('🎵 === Returning error response ===')
     return c.json({ 
       success: false, 
       error: `音声生成中にエラーが発生しました:\n${errorMessage}` 
@@ -1547,6 +1592,7 @@ app.get('/', (c) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Toho Listening Maker - 桐朋中学校・桐朋高等学校</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>
