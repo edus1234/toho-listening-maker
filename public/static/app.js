@@ -82,6 +82,12 @@ function setupLogoutButton() {
         // Hide logout button
         logoutButton.classList.add('hidden');
         
+        // Hide user management button
+        const userManagementBtn = document.getElementById('userManagementButton');
+        if (userManagementBtn) {
+          userManagementBtn.classList.add('hidden');
+        }
+        
         // Render login screen
         renderScreen();
       }
@@ -202,6 +208,8 @@ function renderScreen() {
   
   switch(currentState.screen) {
     case 'login':
+      // Ensure buttons are hidden on login screen
+      hideLogoutButton();
       appContainer.innerHTML = renderLoginScreen();
       attachLoginScreenListeners();
       break;
