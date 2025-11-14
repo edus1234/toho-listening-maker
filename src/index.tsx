@@ -2031,6 +2031,12 @@ app.post('/api/tests', async (c) => {
       return c.json({ success: false, error: '必須項目が不足しています' }, 400)
     }
     
+    // Log audio data size
+    console.log('💾 Saving test to database:')
+    console.log('   - Title:', title)
+    console.log('   - Audio data size:', audio_data ? audio_data.length : 0, 'characters')
+    console.log('   - Audio data size (MB):', audio_data ? (audio_data.length / 1024 / 1024).toFixed(2) : 0)
+    
     // Check if folder belongs to user
     const folder = await c.env.DB.prepare(
       'SELECT id FROM folders WHERE id = ? AND user_id = ?'
@@ -2076,8 +2082,17 @@ app.post('/api/tests', async (c) => {
       audio_url: `/api/tests/${insertedId}/audio`
     })
   } catch (error: any) {
-    console.error('Save test error:', error)
-    return c.json({ success: false, error: 'テストの保存に失敗しました' }, 500)
+    console.error('❌ Save test error:', error)
+    console.error('❌ Error message:', error.message)
+    console.error('❌ Error stack:', error.stack)
+    
+    // Return more detailed error message
+    const errorMessage = error.message || 'テストの保存に失敗しました'
+    return c.json({ 
+      success: false, 
+      error: `保存エラー: ${errorMessage}`,
+      details: error.toString()
+    }, 500)
   }
 })
 
