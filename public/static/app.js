@@ -4244,16 +4244,22 @@ async function saveTestToFolder(folderId) {
         const block = mergedSegments[i];
         const base64Audio = block.audio;
         
-        // Convert base64 to ArrayBuffer
-        const binaryString = atob(base64Audio);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let j = 0; j < binaryString.length; j++) {
-          bytes[j] = binaryString.charCodeAt(j);
+        try {
+          // Convert base64 to ArrayBuffer
+          const binaryString = atob(base64Audio);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let j = 0; j < binaryString.length; j++) {
+            bytes[j] = binaryString.charCodeAt(j);
+          }
+          
+          // Decode MP3 to AudioBuffer
+          const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+          audioBuffers.push(audioBuffer);
+          console.log(`✅ Decoded block ${i + 1}/${mergedSegments.length}`);
+        } catch (decodeError) {
+          console.error(`❌ Failed to decode block ${i + 1}:`, decodeError);
+          throw new Error(`音声ブロック ${i + 1} のデコードに失敗しました。音声データが破損している可能性があります。`);
         }
-        
-        // Decode MP3 to AudioBuffer
-        const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-        audioBuffers.push(audioBuffer);
       }
       
       btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声を連結中...';
@@ -4317,15 +4323,22 @@ async function saveTestToFolder(folderId) {
       };
       
     } catch (error) {
-      console.error('Save test error:', error);
-      alert(error.response?.data?.error || '保存に失敗しました');
+      console.error('💥 Save test error:', error);
+      const errorMessage = error.response?.data?.error || error.message || '保存に失敗しました';
+      alert(`保存エラー: ${errorMessage}\n\nブラウザのコンソールで詳細を確認してください。`);
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
     }
     
   } catch (error) {
-    console.error('Save test error:', error);
-    alert('保存に失敗しました');
+    console.error('💥 Outer save test error:', error);
+    alert(`保存エラー: ${error.message || '保存に失敗しました'}`);
+    // Reset button if it exists
+    const btn = document.getElementById('saveToFolderButton');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
+    }
   }
 }
 
