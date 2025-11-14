@@ -929,8 +929,8 @@ async function generateScript() {
     // Call OpenAI API for script generation
     const scriptResponse = await axios.post('/api/generate-script-ai', {
       format: currentState.formData.format,
-      topic: currentState.formData.topic || 'environmental issues',
-      keywords: currentState.formData.keywords || 'climate change, global warming',
+      topic: currentState.formData.topic || 'daily life',
+      keywords: currentState.formData.keywords || '',
       cefrLevel: currentState.formData.cefrLevel || 'B1',
       otherConditions: currentState.formData.otherConditions || '',
       numSpeakers: numSpeakers,

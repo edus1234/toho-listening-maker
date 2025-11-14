@@ -173,8 +173,8 @@ app.post('/api/generate-script-ai', async (c) => {
 Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} monologue about "${topic}".
 
 Requirements:
-- CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)
-- Must include these keywords naturally: ${keywords}
+- CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)${keywords ? `
+- Must include these keywords naturally: ${keywords}` : ''}
 ${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
 - Format: [Speaker Name] followed by the speech content
 - Use a single English ${speakerGender === 'female' ? 'female' : 'male'} name for the speaker (e.g., ${genderExample})
@@ -209,8 +209,8 @@ Create a ${isLong ? 'detailed (200-250 words)' : 'brief (80-120 words)'} dialogu
 Requirements:
 - CEFR Level: ${cefrLevel} (adjust vocabulary and grammar complexity accordingly)
 - Number of speakers: ${numSpeakers}
-- Speaker genders: ${speakerGenderInstructions}
-- Must include these keywords naturally: ${keywords}
+- Speaker genders: ${speakerGenderInstructions}${keywords ? `
+- Must include these keywords naturally: ${keywords}` : ''}
 ${otherConditions ? `- Additional conditions: ${otherConditions}` : ''}
 - Format: [Conversation between Name1, Name2${numSpeakers >= 3 ? ', Name3' : ''}] followed by dialogue lines
 - Use appropriate English names matching the specified genders
@@ -238,7 +238,7 @@ ${numSpeakers >= 3 ? `${exampleNames[2]}: I agree, and...\n\n` : ''}(Continue th
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are an expert English listening test creator. Always output in pure English without any Japanese text.' },
+          { role: 'system', content: 'You are an expert English listening test creator. Always output in pure English without any Japanese text. Create diverse, fresh, and unique content tailored to the specific topic requested. Avoid overused themes like climate change unless explicitly requested.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.8,
@@ -1711,7 +1711,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=9d03d21a1ccb9d127d07929724158c49"></script>
+        <script src="/static/app.js?hash=3c7192e00b023071b72c3ccb1946f5d0"></script>
     </body>
     </html>
   `)
