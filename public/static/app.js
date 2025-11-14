@@ -4278,19 +4278,44 @@ async function saveTestToFolder(folderId) {
       
       btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存準備中...';
       
+      console.log('📦 Step 1: Converting AudioBuffer to WAV...');
+      console.log('   - Channels:', numberOfChannels);
+      console.log('   - Sample rate:', sampleRate);
+      console.log('   - Total length:', totalLength);
+      
       // Convert AudioBuffer to WAV
-      const wavBlob = audioBufferToWav(mergedBuffer);
+      let wavBlob;
+      try {
+        wavBlob = audioBufferToWav(mergedBuffer);
+        console.log('✅ WAV conversion successful, blob size:', wavBlob.size, 'bytes');
+      } catch (wavError) {
+        console.error('❌ WAV conversion error:', wavError);
+        throw new Error(`WAV変換エラー: ${wavError.message}`);
+      }
+      
+      console.log('📦 Step 2: Converting WAV to base64...');
       
       // Convert WAV blob to base64
       const reader = new FileReader();
       reader.readAsDataURL(wavBlob);
       
+      reader.onerror = (error) => {
+        console.error('❌ FileReader error:', error);
+        throw new Error('ファイル読み込みエラーが発生しました');
+      };
+      
       reader.onloadend = async () => {
         const base64Audio = reader.result;
+        console.log('✅ Base64 conversion successful, length:', base64Audio.length, 'characters');
+        
+        console.log('📦 Step 3: Saving to database...');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>データベースに保存中...';
         
         // Save to database
         const token = localStorage.getItem('authToken');
-        const saveResponse = await axios.post('/api/tests', {
+        
+        try {
+          const saveResponse = await axios.post('/api/tests', {
           folder_id: folderId,
           title: title.trim(),
           topic: currentState.formData.topic || '',
@@ -4308,12 +4333,19 @@ async function saveTestToFolder(folderId) {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
+        console.log('✅ Database save response:', saveResponse.data);
+        
         if (saveResponse.data.success) {
+          console.log('🎉 Save completed successfully!');
           alert('保存しました！フォルダから確認できます。');
           btn.disabled = false;
           btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
         } else {
           throw new Error(saveResponse.data.error || '保存に失敗しました');
+        }
+        } catch (saveError) {
+          console.error('❌ Database save error:', saveError);
+          throw saveError;
         }
       };
       
