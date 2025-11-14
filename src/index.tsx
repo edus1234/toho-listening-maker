@@ -49,7 +49,17 @@ app.use('/static/*', serveStatic({ root: './public' }))
 
 // API routes
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', message: 'Toho Listening Test Maker' })
+  const hasOpenAI = !!c.env?.OPENAI_API_KEY
+  const hasGoogleTTS = !!c.env?.GOOGLE_TTS_API_KEY
+  
+  return c.json({ 
+    status: 'ok', 
+    message: 'Toho Listening Test Maker',
+    apiKeys: {
+      openai: hasOpenAI ? 'configured' : 'missing',
+      googleTTS: hasGoogleTTS ? 'configured' : 'missing'
+    }
+  })
 })
 
 // Login endpoint
