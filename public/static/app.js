@@ -3978,7 +3978,7 @@ async function loadTestsInFolder() {
                     <a href="${audioUrl}" download="${test.title}.mp3" class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition" title="音声をダウンロード">
                       <i class="fas fa-download"></i>
                     </a>
-                    <button onclick="playAudio(${test.id}, '${test.title.replace(/'/g, "\\'")}');" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg transition" title="音声を再生">
+                    <button id="playBtn-${test.id}" onclick="toggleAudio(${test.id}, '${test.title.replace(/'/g, "\\'")}');" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg transition" title="音声を再生">
                       <i class="fas fa-play"></i>
                     </button>
                     <button onclick="downloadQRCode('${qrCodeUrl}', '${test.title.replace(/'/g, "\\'")}');" class="bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-lg transition" title="QRコードをダウンロード">
@@ -4007,11 +4007,55 @@ async function loadTestsInFolder() {
   }
 }
 
-window.playAudio = function(testId, title) {
-  const audioUrl = `/api/tests/${testId}/audio`;
-  const audio = new Audio(audioUrl);
+// Store currently playing audio for each test
+const currentAudio = {};
+
+window.toggleAudio = function(testId, title) {
+  const btn = document.getElementById(`playBtn-${testId}`);
+  const icon = btn.querySelector('i');
   
-  // Play audio and handle errors
+  // If audio is currently playing, stop it
+  if (currentAudio[testId] && !currentAudio[testId].paused) {
+    currentAudio[testId].pause();
+    currentAudio[testId].currentTime = 0;
+    icon.className = 'fas fa-play';
+    btn.title = '音声を再生';
+    btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+    btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    console.log(`⏹️ Stopped audio: ${title}`);
+    return;
+  }
+  
+  // Otherwise, start playing
+  const audioUrl = `/api/tests/${testId}/audio`;
+  
+  // Stop any other playing audio
+  Object.keys(currentAudio).forEach(key => {
+    if (currentAudio[key] && !currentAudio[key].paused) {
+      currentAudio[key].pause();
+      currentAudio[key].currentTime = 0;
+      const otherBtn = document.getElementById(`playBtn-${key}`);
+      if (otherBtn) {
+        const otherIcon = otherBtn.querySelector('i');
+        otherIcon.className = 'fas fa-play';
+        otherBtn.title = '音声を再生';
+        otherBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        otherBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+      }
+    }
+  });
+  
+  // Create and play new audio
+  const audio = new Audio(audioUrl);
+  currentAudio[testId] = audio;
+  
+  // Update button to stop state
+  icon.className = 'fas fa-stop';
+  btn.title = '停止';
+  btn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+  btn.classList.add('bg-red-500', 'hover:bg-red-600');
+  
+  // Play audio
   audio.play()
     .then(() => {
       console.log(`✅ Playing audio: ${title}`);
@@ -4019,7 +4063,21 @@ window.playAudio = function(testId, title) {
     .catch(error => {
       console.error('Audio playback error:', error);
       alert(`音声の再生に失敗しました: ${error.message}`);
+      // Reset button on error
+      icon.className = 'fas fa-play';
+      btn.title = '音声を再生';
+      btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+      btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
     });
+  
+  // Reset button when audio ends
+  audio.addEventListener('ended', () => {
+    icon.className = 'fas fa-play';
+    btn.title = '音声を再生';
+    btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+    btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    console.log(`✅ Audio finished: ${title}`);
+  });
 };
 
 window.downloadQRCode = async function(qrCodeUrl, title) {
