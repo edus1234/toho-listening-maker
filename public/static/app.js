@@ -3159,7 +3159,7 @@ function showAudioResult() {
   
   // Back to script editing button
   document.getElementById('backToScriptButton').addEventListener('click', () => {
-    currentState.screen = 'scriptResult';
+    currentState.screen = 'review';
     renderScreen();
   });
   

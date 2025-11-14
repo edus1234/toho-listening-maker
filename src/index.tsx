@@ -2086,11 +2086,11 @@ app.get('/api/tests/:id/audio', async (c) => {
     const base64Data = audioData.replace(/^data:audio\/\w+;base64,/, '')
     const audioBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
     
-    // Return MP3 file
+    // Return MP3 file for inline playback
     return new Response(audioBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
-        'Content-Disposition': `attachment; filename="${test.title || 'listening-test'}.mp3"`,
+        'Content-Disposition': 'inline',
         'Cache-Control': 'public, max-age=31536000'
       }
     })
