@@ -4158,14 +4158,73 @@ async function saveTestToFolder(folderId) {
       console.log('💾 Saving test with audioSegments:', currentState.audioSegments.length, 'segments');
       console.log('💾 Saving test with speakers:', JSON.stringify(currentState.speakers, null, 2));
       
-      // Call API to merge audio segments
-      const mergeResponse = await axios.post('/api/merge-audio', {
-        audioSegments: currentState.audioSegments
-      }, { responseType: 'blob' });
+      // Step 1: Call backend to merge audio segments with silence blocks
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声を統合中...';
       
-      // Convert blob to base64
+      // Filter out silence segments (only send audio segments to backend)
+      const audioOnlySegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
+      console.log(`📤 Sending ${audioOnlySegments.length} audio segments to backend`);
+      
+      const mergeResponse = await axios.post('/api/merge-audio', {
+        audioSegments: audioOnlySegments
+      });
+      
+      if (!mergeResponse.data.success) {
+        throw new Error(mergeResponse.data.error || 'サーバーでの統合に失敗しました');
+      }
+      
+      const mergedSegments = mergeResponse.data.mergedSegments;
+      console.log(`✅ Server merged into ${mergedSegments.length} blocks`);
+      
+      // Step 2: Use Web Audio API to decode and concatenate all blocks
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声をデコード中...';
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffers = [];
+      
+      // Decode all blocks (including silence blocks)
+      for (let i = 0; i < mergedSegments.length; i++) {
+        const block = mergedSegments[i];
+        const base64Audio = block.audio;
+        
+        // Convert base64 to ArrayBuffer
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let j = 0; j < binaryString.length; j++) {
+          bytes[j] = binaryString.charCodeAt(j);
+        }
+        
+        // Decode MP3 to AudioBuffer
+        const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+        audioBuffers.push(audioBuffer);
+      }
+      
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声を連結中...';
+      
+      // Calculate total length
+      const totalLength = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
+      
+      // Create a single merged AudioBuffer
+      const numberOfChannels = audioBuffers[0].numberOfChannels;
+      const sampleRate = audioBuffers[0].sampleRate;
+      const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+      
+      // Copy all audio data into merged buffer
+      let offset = 0;
+      for (const buffer of audioBuffers) {
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          mergedBuffer.getChannelData(channel).set(buffer.getChannelData(channel), offset);
+        }
+        offset += buffer.length;
+      }
+      
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>保存準備中...';
+      
+      // Convert AudioBuffer to WAV
+      const wavBlob = audioBufferToWav(mergedBuffer);
+      
+      // Convert WAV blob to base64
       const reader = new FileReader();
-      reader.readAsDataURL(mergeResponse.data);
+      reader.readAsDataURL(wavBlob);
       
       reader.onloadend = async () => {
         const base64Audio = reader.result;

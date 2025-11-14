@@ -2083,13 +2083,25 @@ app.get('/api/tests/:id/audio', async (c) => {
     
     // Decode base64 audio data
     const audioData = test.audio_data as string
-    const base64Data = audioData.replace(/^data:audio\/\w+;base64,/, '')
+    
+    // Detect content type from data URL
+    let contentType = 'audio/mpeg'
+    if (audioData.startsWith('data:audio/wav')) {
+      contentType = 'audio/wav'
+    } else if (audioData.startsWith('data:audio/mpeg')) {
+      contentType = 'audio/mpeg'
+    } else if (audioData.startsWith('data:application/json')) {
+      // This is a corrupted entry, return error
+      return c.json({ success: false, error: '音声データが破損しています' }, 500)
+    }
+    
+    const base64Data = audioData.replace(/^data:[^;]+;base64,/, '')
     const audioBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))
     
-    // Return MP3 file for inline playback
+    // Return audio file for inline playback
     return new Response(audioBuffer, {
       headers: {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
         'Content-Disposition': 'inline',
         'Cache-Control': 'public, max-age=31536000'
       }
