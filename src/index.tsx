@@ -1525,6 +1525,80 @@ app.post('/api/merge-audio', async (c) => {
   }
 })
 
+// Download merged MP3 file endpoint
+app.post('/api/download-merged-mp3', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { audioSegments } = body
+    
+    if (!audioSegments || audioSegments.length === 0) {
+      return c.json({ success: false, error: '音声セグメントが提供されていません' }, 400)
+    }
+    
+    console.log(`🎵 Downloading merged MP3 with ${audioSegments.length} segments...`)
+    
+    // Build merged segments array: audio blocks + silence blocks
+    const mergedAudio: string[] = []
+    
+    for (const segment of audioSegments) {
+      // Skip silence segments that are already in the array
+      if (segment.type === 'silence') {
+        continue
+      }
+      
+      // Add the audio segment
+      mergedAudio.push(segment.audio)
+      
+      // Add silence block after this segment if pauseAfter > 0
+      const pauseAfter = segment.pauseAfter || 0
+      if (pauseAfter > 0) {
+        const silenceBase64 = getSilenceBase64(pauseAfter)
+        if (silenceBase64) {
+          console.log(`⏸️ Adding ${pauseAfter}s silence after ${segment.speaker}`)
+          mergedAudio.push(silenceBase64)
+        }
+      }
+    }
+    
+    console.log(`✅ Merged into ${mergedAudio.length} blocks (audio + silence)`)
+    
+    // Concatenate all base64 audio data
+    const mergedAudioBase64 = mergedAudio.join('')
+    
+    // Convert base64 to binary
+    try {
+      const binaryString = atob(mergedAudioBase64)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      
+      console.log(`✅ Successfully merged audio, size: ${(bytes.length / 1024).toFixed(2)} KB`)
+      
+      // Return as MP3 file for download
+      return new Response(bytes, {
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Disposition': 'attachment; filename="listening-test-' + Date.now() + '.mp3"'
+        }
+      })
+    } catch (decodeError: any) {
+      console.error('❌ Base64 decode error:', decodeError)
+      return c.json({ 
+        success: false, 
+        error: `Base64デコードエラー: ${decodeError.message}` 
+      }, 500)
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Download merged MP3 error:', error)
+    return c.json({ 
+      success: false, 
+      error: `MP3ダウンロードエラー: ${error.message}` 
+    }, 500)
+  }
+})
+
 // Old merge endpoint for backward compatibility (deprecated)
 app.post('/api/merge-audio-old', async (c) => {
   try {
@@ -1637,7 +1711,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=87ebdecd8c33adabccd5c0c754139d63"></script>
+        <script src="/static/app.js?hash=9d03d21a1ccb9d127d07929724158c49"></script>
     </body>
     </html>
   `)

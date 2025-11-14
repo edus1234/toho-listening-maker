@@ -2121,7 +2121,7 @@ function showAudioResult() {
       <div class="flex gap-4 mb-4">
         <button id="downloadMp3Button"
                 class="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
-          <i class="fas fa-download mr-2"></i>WAVダウンロード（結合済み）
+          <i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）
         </button>
         <button id="backToScriptButton"
                 class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
@@ -2758,114 +2758,50 @@ function showAudioResult() {
       }
   }
   
-  // Download MP3 button - Call backend to merge audio with blanks, then use Web Audio API
+  // Download MP3 button - Server-side merging for direct MP3 download
   document.getElementById('downloadMp3Button').addEventListener('click', async () => {
     const btn = document.getElementById('downloadMp3Button');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>ブランクを挿入中...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>MP3を準備中...';
     
-    console.log('🎵 Downloading audio with', currentState.audioSegments.length, 'segments');
+    console.log('🎵 Downloading MP3 with', currentState.audioSegments.length, 'segments');
     
     try {
-      // Step 1: Call backend to merge audio segments with silence blocks
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>サーバーで統合中...';
-      
       // Filter out silence segments (only send audio segments to backend)
       const audioOnlySegments = currentState.audioSegments.filter(seg => seg.type !== 'silence');
-      console.log(`📤 Sending ${audioOnlySegments.length} audio segments to backend (excluding existing silence)`);
+      console.log(`📤 Sending ${audioOnlySegments.length} audio segments to backend`);
       
       // Debug: Log pauseAfter values
       audioOnlySegments.forEach((seg, idx) => {
         console.log(`  Segment ${idx}: ${seg.speaker} - pauseAfter: ${seg.pauseAfter}s`);
       });
       
-      const mergeResponse = await axios.post('/api/merge-audio', {
+      // Call backend to merge and download MP3 directly
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>サーバーで結合中...';
+      
+      const response = await axios.post('/api/download-merged-mp3', {
         audioSegments: audioOnlySegments
+      }, {
+        responseType: 'blob'  // Important: receive binary data
       });
       
-      if (!mergeResponse.data.success) {
-        throw new Error(mergeResponse.data.error || 'サーバーでの統合に失敗しました');
-      }
-      
-      const mergedSegments = mergeResponse.data.mergedSegments;
-      console.log(`✅ Server merged into ${mergedSegments.length} blocks (audio + silence)`);
-      
-      // Step 2: Use Web Audio API to decode and concatenate all blocks
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>デコード中...';
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const audioBuffers = [];
-      
-      // Decode all blocks (including silence blocks)
-      for (let i = 0; i < mergedSegments.length; i++) {
-        const block = mergedSegments[i];
-        const base64Audio = block.audio;
-        
-        // Convert base64 to ArrayBuffer
-        const binaryString = atob(base64Audio);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let j = 0; j < binaryString.length; j++) {
-          bytes[j] = binaryString.charCodeAt(j);
-        }
-        
-        // Decode MP3 to AudioBuffer
-        try {
-          const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-          audioBuffers.push(audioBuffer);
-          const blockType = block.type === 'silence' ? '⏸️ Silence' : '🎤 Audio';
-          console.log(`✅ Decoded block ${i+1}/${mergedSegments.length} (${blockType}): ${audioBuffer.duration.toFixed(2)}s`);
-        } catch (decodeError) {
-          console.error(`❌ Failed to decode block ${i}:`, decodeError);
-          throw new Error(`ブロック ${i+1} のデコードに失敗しました`);
-        }
-      }
-      
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>連結中...';
-      
-      // Calculate total length
-      const totalLength = audioBuffers.reduce((sum, buf) => sum + buf.length, 0);
-      const totalDuration = audioBuffers.reduce((sum, buf) => sum + buf.duration, 0);
-      console.log(`📊 Total duration: ${totalDuration.toFixed(2)}s, Total samples: ${totalLength}`);
-      
-      // Create a single merged AudioBuffer
-      const numberOfChannels = audioBuffers[0].numberOfChannels;
-      const sampleRate = audioBuffers[0].sampleRate;
-      const mergedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
-      
-      // Copy all audio data into merged buffer
-      let offset = 0;
-      for (const buffer of audioBuffers) {
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-          mergedBuffer.getChannelData(channel).set(buffer.getChannelData(channel), offset);
-        }
-        offset += buffer.length;
-      }
-      
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>エンコード中...';
-      
-      // Convert AudioBuffer to WAV for download
-      // Note: We use WAV instead of MP3 because:
-      // - WAV is lossless and high quality
-      // - No MP3 encoder needed in browser
-      // - File size is acceptable for local download
-      const wavBlob = audioBufferToWav(mergedBuffer);
-      
-      // Download the merged audio
-      const url = window.URL.createObjectURL(wavBlob);
+      // Create download link
+      const url = window.URL.createObjectURL(response.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'listening-test-' + Date.now() + '.wav';
+      a.download = 'listening-test-' + Date.now() + '.mp3';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-download mr-2"></i>WAVダウンロード（結合済み）';
+      btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
       
-      console.log('✅ Download complete');
+      console.log('✅ MP3 download complete');
     } catch (error) {
-      console.error('MP3結合エラー:', error);
-      alert('MP3結合エラー: ' + error.message);
+      console.error('MP3ダウンロードエラー:', error);
+      alert('MP3ダウンロードエラー: ' + error.message);
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
     }
