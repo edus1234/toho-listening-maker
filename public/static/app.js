@@ -2842,7 +2842,11 @@ function showAudioResult() {
       
       btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>エンコード中...';
       
-      // Convert AudioBuffer to WAV (we'll use WAV instead of MP3 for now)
+      // Convert AudioBuffer to WAV for download
+      // Note: We use WAV instead of MP3 because:
+      // - WAV is lossless and high quality
+      // - No MP3 encoder needed in browser
+      // - File size is acceptable for local download
       const wavBlob = audioBufferToWav(mergedBuffer);
       
       // Download the merged audio
@@ -2856,7 +2860,7 @@ function showAudioResult() {
       document.body.removeChild(a);
       
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
+      btn.innerHTML = '<i class="fas fa-download mr-2"></i>WAVダウンロード（結合済み）';
       
       console.log('✅ Download complete');
     } catch (error) {
