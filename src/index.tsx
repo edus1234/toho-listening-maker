@@ -1711,7 +1711,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=3c7192e00b023071b72c3ccb1946f5d0"></script>
+        <script src="/static/app.js?hash=8cfc11d18102edac122d0e516bad44da"></script>
     </body>
     </html>
   `)

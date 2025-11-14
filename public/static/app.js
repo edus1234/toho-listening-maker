@@ -2133,10 +2133,14 @@ function showAudioResult() {
         </button>
       </div>
       
-      <div class="border-t-2 pt-4">
+      <div class="border-t-2 pt-4 space-y-3">
         <button id="saveToFolderButton"
                 class="w-full bg-green-600 text-white px-6 py-4 rounded-lg font-semibold hover:bg-green-700 transition text-lg">
           <i class="fas fa-save mr-2"></i>フォルダに保存
+        </button>
+        <button id="viewFoldersButton"
+                class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+          <i class="fas fa-folder-open mr-2"></i>フォルダを見る
         </button>
       </div>
     </div>
@@ -3052,6 +3056,12 @@ function showAudioResult() {
   // Save to folder button
   document.getElementById('saveToFolderButton').addEventListener('click', async () => {
     await showSaveToFolderDialog();
+  });
+  
+  // View folders button
+  document.getElementById('viewFoldersButton').addEventListener('click', () => {
+    currentState.screen = 'folders';
+    renderScreen();
   });
   
   // Move segment up button
@@ -4211,9 +4221,14 @@ async function saveTestToFolder(folderId) {
         
         if (saveResponse.data.success) {
           console.log('🎉 Save completed successfully!');
-          alert('保存しました！フォルダから確認できます。');
           btn.disabled = false;
           btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
+          
+          // Show success message with option to view folder
+          if (confirm('✅ 保存しました！\n\n今すぐフォルダを確認しますか？')) {
+            currentState.screen = 'folders';
+            renderScreen();
+          }
         } else {
           throw new Error(saveResponse.data.error || '保存に失敗しました');
         }
