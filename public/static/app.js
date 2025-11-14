@@ -4183,14 +4183,15 @@ async function saveTestToFolder(folderId) {
       // This significantly reduces file size and processing time
       console.log('💡 Using optimized MP3 storage (no WAV conversion)');
       
-      // Simply concatenate the MP3 base64 strings
+      // Concatenate all MP3 base64 strings (audio + silence blocks)
       btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声を準備中...';
       
-      // Concatenate all base64 audio data
-      const combinedBase64 = mergedSegments.map(seg => seg.audio).join(',');
-      const audioData = `data:audio/mpeg;base64,${mergedSegments[0].audio}`;  // Use first segment for now
+      // Concatenate all base64 audio data from all blocks
+      const combinedBase64 = mergedSegments.map(seg => seg.audio).join('');
+      const audioData = `data:audio/mpeg;base64,${combinedBase64}`;
       
       console.log('✅ Audio prepared, size:', audioData.length, 'characters');
+      console.log('   - Segments merged:', mergedSegments.length);
       console.log('   - Size (MB):', (audioData.length / 1024 / 1024).toFixed(2));
       
       // Save to database directly
