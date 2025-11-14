@@ -1981,17 +1981,44 @@ function showAudioResult() {
                 <option value="calm" ${(segment.voiceStyle || 'neutral') === 'calm' ? 'selected' : ''}>落ち着いた</option>
               </select>
             </div>
-            <!-- Editable script text -->
+            <!-- Unified Text Editor with Pause Control -->
             <div class="mt-1">
-              <textarea 
-                class="segment-text-editor w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 resize-none"
-                data-segment-index="${index}"
-                rows="2"
-                placeholder="セリフを編集...">${segment.text || ''}</textarea>
-              <p class="text-xs text-gray-500 mt-1">
-                <i class="fas fa-info-circle mr-1"></i>
-                テキストを編集後、入力欄の外をクリックすると自動的に音声が再生成されます
-              </p>
+              <div class="mb-2">
+                <label class="text-xs font-semibold text-gray-700 mb-1 block">
+                  <i class="fas fa-edit mr-1"></i>セリフを編集（ポーズ調整可能）
+                </label>
+                <div class="bg-blue-50 p-2 rounded mb-2 text-xs border border-blue-200">
+                  <div class="font-semibold text-blue-800 mb-1">⏸️ ポーズを挿入:</div>
+                  <div class="flex flex-wrap gap-1 mb-2">
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.2秒間]">
+                      [0.2秒間]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.5秒間]">
+                      [0.5秒間]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[1秒間]">
+                      [1秒間]
+                    </button>
+                    <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[2秒間]">
+                      [2秒間]
+                    </button>
+                  </div>
+                  <div class="text-xs text-gray-600">
+                    💡 カーソル位置にポーズを挿入します。単語の前後に配置してください。
+                  </div>
+                </div>
+                
+                <textarea 
+                  class="segment-text-editor w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 resize-y"
+                  data-segment-index="${index}"
+                  rows="3"
+                  placeholder="セリフを編集... ポーズマークも挿入できます">${segment.voiceInstructions || segment.text || ''}</textarea>
+                
+                <p class="text-xs text-green-600 mt-1 bg-green-50 p-2 rounded border border-green-200">
+                  <i class="fas fa-check-circle mr-1"></i>
+                  <strong>テキストを編集後、入力欄の外をクリックすると自動的に音声が再生成されます</strong>
+                </p>
+              </div>
             </div>
             
             <!-- Speed control and Add Blank button -->
@@ -2010,65 +2037,10 @@ function showAudioResult() {
               </button>
             </div>
             
-            ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-1 font-mono bg-purple-50 p-1 rounded">適用済み音声調整: ${segment.ssmlInstructions}</div>` : ''}
-            
-            <!-- Voice instructions editor (collapsed by default) -->
-            <div class="mt-2">
-              <button type="button" class="text-xs text-indigo-600 hover:text-indigo-800 toggle-audio-voice-instructions" data-segment-index="${index}">
-                <i class="fas fa-sliders-h mr-1"></i>音声を調整する
-              </button>
-              <div class="audio-voice-instructions-container hidden mt-2" data-segment-index="${index}">
-                <div class="bg-blue-50 p-2 rounded mb-2 text-xs">
-                  <div class="font-semibold text-blue-800 mb-1">クイック挿入:</div>
-                  
-                  <!-- Pause marks -->
-                  <div class="mb-2">
-                    <div class="text-xs text-gray-600 mb-1">⏸️ ポーズ:</div>
-                    <div class="flex flex-wrap gap-1">
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.2秒間]">
-                        [0.2秒間]
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[0.5秒間]">
-                        [0.5秒間]
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[1秒間]">
-                        [1秒間]
-                      </button>
-                      <button type="button" class="insert-mark-btn px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-xs" data-segment-index="${index}" data-mark="[2秒間]">
-                        [2秒間]
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div class="text-xs text-gray-600 mt-2">
-                    💡 カーソル位置にマークを挿入します。単語の前後に配置してください。
-                  </div>
-                </div>
-                
-                <div class="mb-2 p-2 bg-green-50 rounded text-xs border border-green-300">
-                  <div class="font-semibold text-green-800 mb-1">✨ すべての変更は自動的に音声に反映されます</div>
-                  <div class="text-gray-700 text-xs">テキスト編集、マーク挿入、速度・アクセント・性別などの変更を行うと、即座に音声が自動再生成されます。</div>
-                </div>
-                
-                <textarea 
-                  class="audio-voice-instruction w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-                  data-segment-index="${index}"
-                  rows="3"
-                  placeholder="マークを挿入すると自動的に音声が再生成されます"
-                >${segment.voiceInstructions || segment.text || ''}</textarea>
-                
-                <div class="flex gap-2 mt-2">
-                  <button type="button" class="clear-audio-instruction-btn w-full bg-gray-400 text-white px-3 py-1 rounded text-xs hover:bg-gray-500 transition" data-segment-index="${index}">
-                    <i class="fas fa-times mr-1"></i>クリア
-                  </button>
-                </div>
-                
-                <div class="audio-ssml-preview hidden bg-gray-50 p-2 rounded border border-gray-200 mt-2" data-segment-index="${index}">
-                  <div class="text-xs font-semibold text-gray-700 mb-1">生成された調整コード:</div>
-                  <div class="audio-ssml-preview-text text-xs font-mono text-gray-600 whitespace-pre-wrap">${segment.ssmlInstructions || ''}</div>
-                </div>
-              </div>
-            </div>
+            ${segment.ssmlInstructions ? `<div class="text-xs text-purple-600 mt-2 font-mono bg-purple-50 p-2 rounded border border-purple-200">
+              <div class="font-semibold mb-1">✨ 適用済み音声調整:</div>
+              <div class="whitespace-pre-wrap">${segment.ssmlInstructions}</div>
+            </div>` : ''}
           </div>
           <audio class="audio-segment hidden" data-index="${index}" data-raw-audio="${segment.audio}">
           </audio>
@@ -2210,12 +2182,11 @@ function showAudioResult() {
     }
     
     try {
-      // Read current textarea value with marks
-      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
-      const currentTextWithMarks = textarea ? textarea.value : segment.text;
-      
-      // Read current segment text (may have been edited)
+      // Read current textarea value with marks (unified editor)
       const textEditor = document.querySelector(`.segment-text-editor[data-segment-index="${index}"]`);
+      const currentTextWithMarks = textEditor ? textEditor.value : segment.text;
+      
+      // Update segment text
       if (textEditor) {
         segment.text = textEditor.value;
       }
@@ -2569,31 +2540,7 @@ function showAudioResult() {
   });
   
   // Toggle voice instructions editor
-  document.querySelectorAll('.toggle-audio-voice-instructions').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
-      const container = document.querySelector(`.audio-voice-instructions-container[data-segment-index="${index}"]`);
-      container.classList.toggle('hidden');
-    });
-  });
-  
-  // Note: "Convert to SSML" button removed - users can directly regenerate audio with marks
-  
-  // Clear voice instructions (in audio page)
-  document.querySelectorAll('.clear-audio-instruction-btn').forEach(button => {
-    button.addEventListener('click', (e) => {
-      const index = parseInt(e.target.closest('button').dataset.segmentIndex);
-      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
-      const preview = document.querySelector(`.audio-ssml-preview[data-segment-index="${index}"]`);
-      
-      textarea.value = '';
-      preview.classList.add('hidden');
-      
-      // Clear from state
-      currentState.audioSegments[index].ssmlInstructions = '';
-      currentState.audioSegments[index].voiceInstructions = '';
-    });
-  });
+  // Note: Voice instructions toggle and clear buttons removed - now using unified text editor
   
   // Insert mark buttons - moved to end of function with auto-regenerate feature
   
@@ -2616,7 +2563,7 @@ function showAudioResult() {
       
       try {
         // ★★★ CRITICAL FIX: Read current textarea value with marks ★★★
-        const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+        const textarea = document.querySelector(`.segment-text-editor[data-segment-index="${index}"]`);
         const currentTextWithMarks = textarea ? textarea.value : segment.text;
         
         // Check if text contains marks that need conversion
@@ -3216,15 +3163,9 @@ function showAudioResult() {
       const index = parseInt(e.target.dataset.segmentIndex);
       const newText = e.target.value;
       
-      // Update segment text in state
+      // Update segment text AND voiceInstructions in state
       currentState.audioSegments[index].text = newText;
-      
-      // Also update voiceInstructions if it exists
-      const voiceInstructionTextarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
-      if (voiceInstructionTextarea && !voiceInstructionTextarea.value.includes('[')) {
-        // Only update if no marks have been added yet
-        voiceInstructionTextarea.value = newText;
-      }
+      currentState.audioSegments[index].voiceInstructions = newText;
       
       console.log(`✏️ Segment ${index} text updated to: ${newText.substring(0, 50)}...`);
       
@@ -3283,7 +3224,12 @@ function showAudioResult() {
     button.addEventListener('click', async (e) => {
       const index = parseInt(e.currentTarget.dataset.segmentIndex);
       const mark = e.currentTarget.dataset.mark;
-      const textarea = document.querySelector(`.audio-voice-instruction[data-segment-index="${index}"]`);
+      const textarea = document.querySelector(`.segment-text-editor[data-segment-index="${index}"]`);
+      
+      if (!textarea) {
+        console.error('テキストエリアが見つかりません:', index);
+        return;
+      }
       
       // Insert mark at cursor position
       const start = textarea.selectionStart;
@@ -3300,8 +3246,11 @@ function showAudioResult() {
       textarea.selectionEnd = newPos;
       textarea.focus();
       
+      // Update segment voiceInstructions
+      currentState.audioSegments[index].voiceInstructions = textarea.value;
+      
       // Auto-trigger regeneration immediately
-      console.log(`マーク「${mark}」を挿入しました。音声を自動再生成します...`);
+      console.log(`✨ マーク「${mark}」を挿入しました。音声を自動再生成します...`);
       setTimeout(() => {
         autoRegenerateSegment(index);
       }, 500);
