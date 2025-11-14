@@ -3942,8 +3942,10 @@ async function loadTestsInFolder() {
         `;
       } else {
         testsContainer.innerHTML = tests.map(test => {
-          const audioUrl = `/api/tests/${test.id}/audio`;
-          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + audioUrl)}`;
+          const audioUrl = test.audio_url || `/api/tests/${test.id}/audio`;
+          // Use full URL for QR code
+          const fullAudioUrl = audioUrl.startsWith('http') ? audioUrl : `${window.location.origin}${audioUrl}`;
+          const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(fullAudioUrl)}`;
           
           return `
             <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6">
@@ -4008,15 +4010,27 @@ async function loadTestsInFolder() {
 window.playAudio = function(testId, title) {
   const audioUrl = `/api/tests/${testId}/audio`;
   const audio = new Audio(audioUrl);
-  audio.play();
   
-  // Show notification
-  alert(`「${title}」を再生します`);
+  // Play audio and handle errors
+  audio.play()
+    .then(() => {
+      console.log(`✅ Playing audio: ${title}`);
+    })
+    .catch(error => {
+      console.error('Audio playback error:', error);
+      alert(`音声の再生に失敗しました: ${error.message}`);
+    });
 };
 
 window.downloadQRCode = async function(qrCodeUrl, title) {
   try {
+    console.log('📥 Downloading QR code from:', qrCodeUrl);
     const response = await fetch(qrCodeUrl);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -4026,9 +4040,10 @@ window.downloadQRCode = async function(qrCodeUrl, title) {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+    console.log('✅ QR code downloaded successfully');
   } catch (error) {
-    console.error('Download QR code error:', error);
-    alert('QRコードのダウンロードに失敗しました');
+    console.error('❌ Download QR code error:', error);
+    alert(`QRコードのダウンロードに失敗しました: ${error.message}`);
   }
 };
 
