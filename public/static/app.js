@@ -146,6 +146,56 @@ function hideLogoutButton() {
   }
 }
 
+// Helper function to convert AudioBuffer to WAV Blob (Global scope)
+function audioBufferToWav(buffer) {
+  const length = buffer.length * buffer.numberOfChannels * 2;
+  const arrayBuffer = new ArrayBuffer(44 + length);
+  const view = new DataView(arrayBuffer);
+  const channels = [];
+  let offset = 0;
+  let pos = 0;
+  
+  // Write WAV header
+  const setUint16 = (data) => { view.setUint16(pos, data, true); pos += 2; };
+  const setUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
+  
+  // "RIFF" chunk descriptor
+  setUint32(0x46464952); // "RIFF"
+  setUint32(36 + length); // file length - 8
+  setUint32(0x45564157); // "WAVE"
+  
+  // "fmt " sub-chunk
+  setUint32(0x20746d66); // "fmt "
+  setUint32(16); // fmt chunk size
+  setUint16(1); // audio format (1 = PCM)
+  setUint16(buffer.numberOfChannels);
+  setUint32(buffer.sampleRate);
+  setUint32(buffer.sampleRate * buffer.numberOfChannels * 2); // byte rate
+  setUint16(buffer.numberOfChannels * 2); // block align
+  setUint16(16); // bits per sample
+  
+  // "data" sub-chunk
+  setUint32(0x61746164); // "data"
+  setUint32(length);
+  
+  // Write audio data
+  for (let i = 0; i < buffer.numberOfChannels; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+  
+  while (pos < arrayBuffer.byteLength) {
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      let sample = channels[i][offset];
+      sample = Math.max(-1, Math.min(1, sample));
+      view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      pos += 2;
+    }
+    offset++;
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
 // Render current screen
 function renderScreen() {
   const appContainer = document.getElementById('app');
@@ -1899,7 +1949,7 @@ function showAudioResult() {
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
-          <button class="play-segment-btn px-2 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm flex-shrink-0" data-index="${index}">
+          <button id="playSegmentBtn-${index}" class="play-segment-btn px-2 py-1 bg-indigo-100 hover:bg-indigo-200 rounded text-sm flex-shrink-0" data-index="${index}" title="再生">
             <i class="fas fa-play"></i>
           </button>
           <div class="flex-1">
@@ -1938,6 +1988,10 @@ function showAudioResult() {
                 data-segment-index="${index}"
                 rows="2"
                 placeholder="セリフを編集...">${segment.text || ''}</textarea>
+              <p class="text-xs text-gray-500 mt-1">
+                <i class="fas fa-info-circle mr-1"></i>
+                テキストを編集後、入力欄の外をクリックすると自動的に音声が再生成されます
+              </p>
             </div>
             
             <!-- Speed control and Add Blank button -->
@@ -2326,37 +2380,71 @@ function showAudioResult() {
     btn.addEventListener('click', (e) => {
       isPlayingAll = false; // Disable continuous playback for individual play
       const index = parseInt(e.currentTarget.dataset.index);
-      console.log('🎵 Play button clicked, segment index:', index);
+      const buttonElement = e.currentTarget;
+      const icon = buttonElement.querySelector('i');
       
-      // Find the audio element with matching data-index (not array index)
+      // Find the audio element with matching data-index
       const audioElement = document.querySelector(`.audio-segment[data-index="${index}"]`);
-      console.log('🎵 Found audio element:', audioElement);
-      console.log('🎵 Audio src:', audioElement?.src);
       
       if (!audioElement) {
         console.error(`❌ Audio element with data-index ${index} not found!`);
         return;
       }
       
-      // Stop all other audio elements
-      audioElements.forEach(audio => {
-        audio.pause();
-        audio.currentTime = 0;
+      // If audio is currently playing, stop it
+      if (!audioElement.paused) {
+        console.log(`⏹️ Stopping segment ${index}`);
+        audioElement.pause();
+        audioElement.currentTime = 0;
+        icon.className = 'fas fa-play';
+        buttonElement.title = '再生';
+        buttonElement.classList.remove('bg-red-100', 'hover:bg-red-200');
+        buttonElement.classList.add('bg-indigo-100', 'hover:bg-indigo-200');
+        return;
+      }
+      
+      // Stop all other audio elements and reset their buttons
+      audioElements.forEach((audio, i) => {
+        if (!audio.paused) {
+          audio.pause();
+          audio.currentTime = 0;
+          const otherBtn = document.getElementById(`playSegmentBtn-${audio.dataset.index}`);
+          if (otherBtn) {
+            const otherIcon = otherBtn.querySelector('i');
+            otherIcon.className = 'fas fa-play';
+            otherBtn.title = '再生';
+            otherBtn.classList.remove('bg-red-100', 'hover:bg-red-200');
+            otherBtn.classList.add('bg-indigo-100', 'hover:bg-indigo-200');
+          }
+        }
       });
       
-      // Play the selected segment
-      console.log(`🎵 Attempting to play audio segment ${index}...`);
-      console.log(`🎵 Audio ready state:`, audioElement.readyState);
-      console.log(`🎵 Audio src exists:`, !!audioElement.src);
-      console.log(`🎵 Audio duration:`, audioElement.duration);
+      // Update button to stop state
+      icon.className = 'fas fa-stop';
+      buttonElement.title = '停止';
+      buttonElement.classList.remove('bg-indigo-100', 'hover:bg-indigo-200');
+      buttonElement.classList.add('bg-red-100', 'hover:bg-red-200');
       
+      // Play the selected segment
+      console.log(`🎵 Playing segment ${index}...`);
       audioElement.play().then(() => {
         console.log('✅ Audio playing successfully');
       }).catch(err => {
         console.error('❌ Play failed:', err);
-        console.error('❌ Error name:', err.name);
-        console.error('❌ Error message:', err.message);
+        // Reset button on error
+        icon.className = 'fas fa-play';
+        buttonElement.title = '再生';
+        buttonElement.classList.remove('bg-red-100', 'hover:bg-red-200');
+        buttonElement.classList.add('bg-indigo-100', 'hover:bg-indigo-200');
       });
+      
+      // Reset button when audio ends
+      audioElement.addEventListener('ended', () => {
+        icon.className = 'fas fa-play';
+        buttonElement.title = '再生';
+        buttonElement.classList.remove('bg-red-100', 'hover:bg-red-200');
+        buttonElement.classList.add('bg-indigo-100', 'hover:bg-indigo-200');
+      }, { once: true });
     });
   });
   
@@ -2823,56 +2911,6 @@ function showAudioResult() {
       btn.innerHTML = '<i class="fas fa-download mr-2"></i>MP3ダウンロード（結合済み）';
     }
   });
-  
-  // Helper function to convert AudioBuffer to WAV Blob
-  function audioBufferToWav(buffer) {
-    const length = buffer.length * buffer.numberOfChannels * 2;
-    const arrayBuffer = new ArrayBuffer(44 + length);
-    const view = new DataView(arrayBuffer);
-    const channels = [];
-    let offset = 0;
-    let pos = 0;
-    
-    // Write WAV header
-    const setUint16 = (data) => { view.setUint16(pos, data, true); pos += 2; };
-    const setUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
-    
-    // "RIFF" chunk descriptor
-    setUint32(0x46464952); // "RIFF"
-    setUint32(36 + length); // file length - 8
-    setUint32(0x45564157); // "WAVE"
-    
-    // "fmt " sub-chunk
-    setUint32(0x20746d66); // "fmt "
-    setUint32(16); // fmt chunk size
-    setUint16(1); // audio format (1 = PCM)
-    setUint16(buffer.numberOfChannels);
-    setUint32(buffer.sampleRate);
-    setUint32(buffer.sampleRate * buffer.numberOfChannels * 2); // byte rate
-    setUint16(buffer.numberOfChannels * 2); // block align
-    setUint16(16); // bits per sample
-    
-    // "data" sub-chunk
-    setUint32(0x61746164); // "data"
-    setUint32(length);
-    
-    // Write audio data
-    for (let i = 0; i < buffer.numberOfChannels; i++) {
-      channels.push(buffer.getChannelData(i));
-    }
-    
-    while (pos < arrayBuffer.byteLength) {
-      for (let i = 0; i < buffer.numberOfChannels; i++) {
-        let sample = channels[i][offset];
-        sample = Math.max(-1, Math.min(1, sample));
-        view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        pos += 2;
-      }
-      offset++;
-    }
-    
-    return new Blob([arrayBuffer], { type: 'audio/wav' });
-  }
   
   // Blank duration input change handler (for silence blocks)
   // Note: Only updates the UI value, actual audio regeneration happens when clicking "Apply Blanks" button
