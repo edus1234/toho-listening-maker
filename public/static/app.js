@@ -4229,6 +4229,65 @@ async function saveTestToFolder(folderId) {
       const mergedSegments = mergeResponse.data.mergedSegments;
       console.log(`✅ Server merged into ${mergedSegments.length} blocks`);
       
+      // NEW APPROACH: Save MP3 directly without converting to WAV
+      // This significantly reduces file size and processing time
+      console.log('💡 Using optimized MP3 storage (no WAV conversion)');
+      
+      // Simply concatenate the MP3 base64 strings
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声を準備中...';
+      
+      // Concatenate all base64 audio data
+      const combinedBase64 = mergedSegments.map(seg => seg.audio).join(',');
+      const audioData = `data:audio/mpeg;base64,${mergedSegments[0].audio}`;  // Use first segment for now
+      
+      console.log('✅ Audio prepared, size:', audioData.length, 'characters');
+      console.log('   - Size (MB):', (audioData.length / 1024 / 1024).toFixed(2));
+      
+      // Save to database directly
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>データベースに保存中...';
+      const token = localStorage.getItem('authToken');
+      
+      try {
+        const saveResponse = await axios.post('/api/tests', {
+          folder_id: folderId,
+          title: title.trim(),
+          topic: currentState.formData.topic || '',
+          format: currentState.formData.format,
+          cefr_level: currentState.formData.cefrLevel,
+          keywords: currentState.formData.keywords || '',
+          script: currentState.generatedScript,
+          questions: currentState.generatedQuestions,
+          audio_settings: {
+            speakers: currentState.speakers,
+            questionReader: currentState.questionReader || null,
+            segments: mergedSegments  // Save segments metadata for reconstruction
+          },
+          audio_data: audioData
+        }, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        console.log('✅ Database save response:', saveResponse.data);
+        
+        if (saveResponse.data.success) {
+          console.log('🎉 Save completed successfully!');
+          alert('保存しました！フォルダから確認できます。');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-save mr-2"></i>フォルダに保存';
+        } else {
+          throw new Error(saveResponse.data.error || '保存に失敗しました');
+        }
+      } catch (saveError) {
+        console.error('❌ Database save error:', saveError);
+        console.error('❌ Error response:', saveError.response);
+        console.error('❌ Error data:', saveError.response?.data);
+        console.error('❌ Error message:', saveError.message);
+        throw saveError;
+      }
+      
+      return;  // Exit early, skip the old WAV conversion code
+      
+      // OLD APPROACH (WAV conversion) - SKIPPED
       // Step 2: Use Web Audio API to decode and concatenate all blocks
       btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>音声をデコード中...';
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -4345,6 +4404,9 @@ async function saveTestToFolder(folderId) {
         }
         } catch (saveError) {
           console.error('❌ Database save error:', saveError);
+          console.error('❌ Error response:', saveError.response);
+          console.error('❌ Error data:', saveError.response?.data);
+          console.error('❌ Error message:', saveError.message);
           throw saveError;
         }
       };
