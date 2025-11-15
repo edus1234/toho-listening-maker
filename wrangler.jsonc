@@ -12,5 +12,16 @@
       "database_name": "toho-listening-db",
       "database_id": "dd170a52-e43d-4813-8ebf-a428b1d8febb"
     }
-  ]
+  ],
+  // Environment variables (set via Cloudflare dashboard or wrangler secrets)
+  // For 20+ concurrent users, configure multiple API keys:
+  // - GOOGLE_TTS_API_KEY (required)
+  // - GOOGLE_TTS_API_KEY_2 (optional, for load balancing)
+  // - GOOGLE_TTS_API_KEY_3 (optional, for load balancing)
+  // - GOOGLE_TTS_API_KEY_4 (optional, for load balancing)
+  // - GOOGLE_TTS_API_KEY_5 (optional, for load balancing)
+  //
+  // Example: 
+  // wrangler pages secret put GOOGLE_TTS_API_KEY --project-name toho-listening-maker
+  // wrangler pages secret put GOOGLE_TTS_API_KEY_2 --project-name toho-listening-maker
 }

@@ -10,6 +10,10 @@ type Bindings = {
   AUTH_PASSWORD?: string;
   OPENAI_API_KEY?: string;
   GOOGLE_TTS_API_KEY?: string;
+  GOOGLE_TTS_API_KEY_2?: string;
+  GOOGLE_TTS_API_KEY_3?: string;
+  GOOGLE_TTS_API_KEY_4?: string;
+  GOOGLE_TTS_API_KEY_5?: string;
 }
 
 type User = {
@@ -1047,11 +1051,21 @@ app.post('/api/generate-audio', async (c) => {
     }
     
     console.log('🔍 Step 3: Loading API keys...')
-    // API keys from environment variables
-    const GOOGLE_TTS_API_KEY = c.env?.GOOGLE_TTS_API_KEY || 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q'
-    const GEMINI_API_KEY = c.env?.GEMINI_API_KEY || c.env?.GOOGLE_TTS_API_KEY
+    // API keys from environment variables with rotation support
+    const API_KEYS = [
+      c.env?.GOOGLE_TTS_API_KEY || 'AIzaSyBB5j4i5EPtmRu8S5CN40fUtkBRzLPW88Q',
+      c.env?.GOOGLE_TTS_API_KEY_2,
+      c.env?.GOOGLE_TTS_API_KEY_3,
+      c.env?.GOOGLE_TTS_API_KEY_4,
+      c.env?.GOOGLE_TTS_API_KEY_5
+    ].filter(key => key) // Remove undefined keys
     
-    console.log('   - GOOGLE_TTS_API_KEY:', GOOGLE_TTS_API_KEY ? `${GOOGLE_TTS_API_KEY.substring(0, 10)}...` : 'NOT SET')
+    console.log(`   - Available API Keys: ${API_KEYS.length}`)
+    API_KEYS.forEach((key, index) => {
+      console.log(`   - API Key ${index + 1}:`, key ? `${key.substring(0, 10)}...` : 'NOT SET')
+    })
+    
+    const GEMINI_API_KEY = c.env?.GEMINI_API_KEY || c.env?.GOOGLE_TTS_API_KEY
     console.log('   - GEMINI_API_KEY:', GEMINI_API_KEY ? `${GEMINI_API_KEY.substring(0, 10)}...` : 'NOT SET')
     
     // Use parsedLines if provided, otherwise parse script
@@ -1126,9 +1140,22 @@ app.post('/api/generate-audio', async (c) => {
       return `<speak>${escapedSSML}</speak>`
     }
     
+    // Global counter for API key rotation (round-robin)
+    let apiKeyIndex = 0
+    
+    // Helper function to get next API key in rotation
+    const getNextAPIKey = () => {
+      const key = API_KEYS[apiKeyIndex % API_KEYS.length]
+      apiKeyIndex++
+      console.log(`🔑 Using API Key ${(apiKeyIndex - 1) % API_KEYS.length + 1}/${API_KEYS.length}`)
+      return key
+    }
+    
     // Helper function to generate TTS audio with SSML support and retry logic
     // Retry up to 5 times with exponential backoff (2s, 4s, 8s, 16s, 32s)
-    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string, retryCount = 0) => {
+    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string, retryCount = 0, apiKey?: string) => {
+      // Use provided API key or get next one in rotation
+      const CURRENT_API_KEY = apiKey || getNextAPIKey()
       let inputContent: any
       const useSSML = ssmlInstructions && ssmlInstructions.trim() !== ''
       
@@ -1175,7 +1202,7 @@ app.post('/api/generate-audio', async (c) => {
       }
       
       const response = await fetch(
-        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
+        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${CURRENT_API_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1201,9 +1228,10 @@ app.post('/api/generate-audio', async (c) => {
           const waitTime = Math.pow(2, retryCount + 1) * 1000 // 2s, 4s, 8s, 16s, 32s
           console.log(`⏱️ Rate limit hit, waiting ${waitTime}ms (${waitTime/1000}s) before retry ${retryCount + 1}/5...`)
           await new Promise(resolve => setTimeout(resolve, waitTime))
-          return generateTTS(text, voiceConfig, speakingRate, ssmlInstructions, retryCount + 1)
+          // Keep using the same API key for retries
+          return generateTTS(text, voiceConfig, speakingRate, ssmlInstructions, retryCount + 1, CURRENT_API_KEY)
         } else if (response.status === 429) {
-          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n5回のリトライでも失敗しました。\n\n💡 解決方法：\n１分程度待ってから再度お試しいただくと、多くのケースで復帰します。')
+          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n5回のリトライでも失敗しました。\n\n💡 解決方法：\n１分程度待ってから再度お試しいただくと、多くのケースで復帰します。\n\n現在 ' + API_KEYS.length + ' 個のAPIキーで負荷分散しています。')
         }
         
         // Check for authentication error

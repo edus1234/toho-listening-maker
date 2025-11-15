@@ -299,19 +299,36 @@ npx wrangler pages secret put OPENAI_API_KEY --project-name webapp
 
 #### Google TTS API の制限
 
-**無料枠**:
+**無料枠（1つのAPIキーあたり）**:
 - **月間100万文字まで無料**
 - 1万分の音声（約100回のテスト作成）に相当
 - 超過後は従量課金（100万文字あたり$16）
 
-**レート制限**:
-- 1秒あたりのリクエスト数に制限あり
+**レート制限（1つのAPIキーあたり）**:
+- **100リクエスト/分**
 - 連続して多数のテストを作成すると、一時的にエラーが発生する可能性
 - エラーが発生した場合は、少し時間をおいてから再試行してください
 
+**複数ユーザー対応（20人規模推奨）**:
+- **複数のAPIキーで負荷分散**（v2.8.0で実装）
+- 4-5個のAPIキーを設定することで、20人が同時使用可能
+- APIキーは自動でローテーション（ラウンドロビン方式）
+- 設定方法:
+  ```bash
+  # メインキー
+  npx wrangler pages secret put GOOGLE_TTS_API_KEY --project-name toho-listening-maker
+  
+  # 追加キー（負荷分散用）
+  npx wrangler pages secret put GOOGLE_TTS_API_KEY_2 --project-name toho-listening-maker
+  npx wrangler pages secret put GOOGLE_TTS_API_KEY_3 --project-name toho-listening-maker
+  npx wrangler pages secret put GOOGLE_TTS_API_KEY_4 --project-name toho-listening-maker
+  npx wrangler pages secret put GOOGLE_TTS_API_KEY_5 --project-name toho-listening-maker
+  ```
+
 **エラーメッセージ**:
 - `無料枠を使い切りました` → 新しいAPIキーが必要
-- `レート制限に達しました` → 数秒待ってから再試行
+- `レート制限に達しました` → 1分程度待ってから再試行
+  - 複数のAPIキーで負荷分散している場合は、エラー発生率が大幅に低下します
 
 ---
 
