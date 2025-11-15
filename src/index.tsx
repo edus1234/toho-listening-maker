@@ -1127,6 +1127,7 @@ app.post('/api/generate-audio', async (c) => {
     }
     
     // Helper function to generate TTS audio with SSML support and retry logic
+    // Retry up to 5 times with exponential backoff (2s, 4s, 8s, 16s, 32s)
     const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string, retryCount = 0) => {
       let inputContent: any
       const useSSML = ssmlInstructions && ssmlInstructions.trim() !== ''
@@ -1170,7 +1171,7 @@ app.post('/api/generate-audio', async (c) => {
       console.log('🎤 Voice Name Used:', voiceName, '| Language:', voiceConfig.languageCode)
       console.log('📝 Text length:', ttsRequest.input.text?.length || ttsRequest.input.ssml?.length || 0, 'characters')
       if (retryCount > 0) {
-        console.log(`🔄 Retry attempt: ${retryCount}/3`)
+        console.log(`🔄 Retry attempt: ${retryCount}/5 (expanded retry limit)`)
       }
       
       const response = await fetch(
@@ -1195,13 +1196,14 @@ app.post('/api/generate-audio', async (c) => {
         }
         
         // Check for rate limit error (too many requests) - retry with exponential backoff
-        if (response.status === 429 && retryCount < 3) {
-          const waitTime = Math.pow(2, retryCount) * 1000 // 1s, 2s, 4s
-          console.log(`⏱️ Rate limit hit, waiting ${waitTime}ms before retry ${retryCount + 1}/3...`)
+        // Increased from 3 to 5 retries with longer wait times
+        if (response.status === 429 && retryCount < 5) {
+          const waitTime = Math.pow(2, retryCount + 1) * 1000 // 2s, 4s, 8s, 16s, 32s
+          console.log(`⏱️ Rate limit hit, waiting ${waitTime}ms (${waitTime/1000}s) before retry ${retryCount + 1}/5...`)
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return generateTTS(text, voiceConfig, speakingRate, ssmlInstructions, retryCount + 1)
         } else if (response.status === 429) {
-          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n1分間に100リクエストまでの制限があります。\n\n💡 解決方法:\n・30秒〜1分待ってから再度お試しください\n・ページをリロードして再試行してください')
+          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n5回のリトライでも失敗しました。\n\n💡 解決方法:\n・1〜2分待ってから再度お試しください\n・ページをリロードして再試行してください\n・セグメント数を減らしてください')
         }
         
         // Check for authentication error
@@ -1329,6 +1331,11 @@ app.post('/api/generate-audio', async (c) => {
             text: `[Silence: ${finalPauseAfter}s]`
           })
         }
+      }
+      
+      // Add delay between segments to avoid rate limiting (200ms)
+      if (lineIndex < lines.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
     }
     
