@@ -3080,6 +3080,7 @@ function showAudioResult() {
   
   // View folders button
   document.getElementById('viewFoldersButton').addEventListener('click', () => {
+    currentState.previousScreen = 'audioResult'; // Track where we came from
     currentState.screen = 'folders';
     renderScreen();
   });
@@ -3657,6 +3658,7 @@ function attachMenuScreenListeners() {
   
   if (accessFoldersButton) {
     accessFoldersButton.addEventListener('click', () => {
+      currentState.previousScreen = null; // Coming from menu, not audio result
       currentState.screen = 'folders';
       renderScreen();
     });
@@ -3670,13 +3672,21 @@ function attachMenuScreenListeners() {
 async function renderFoldersScreen() {
   const appContainer = document.getElementById('app');
   
+  // Determine where we came from
+  const cameFromAudioResult = currentState.previousScreen === 'audioResult';
+  const backButtonHTML = cameFromAudioResult 
+    ? `<button id="backToAudioResultButton" class="mr-4 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition flex items-center">
+         <i class="fas fa-arrow-left mr-2"></i>音声結果に戻る
+       </button>`
+    : `<button id="backToMenuButton" class="mr-4 text-gray-600 hover:text-indigo-600 transition">
+         <i class="fas fa-arrow-left text-2xl"></i>
+       </button>`;
+  
   appContainer.innerHTML = `
     <div class="max-w-6xl mx-auto p-8 fade-in">
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center">
-          <button id="backToMenuButton" class="mr-4 text-gray-600 hover:text-indigo-600 transition">
-            <i class="fas fa-arrow-left text-2xl"></i>
-          </button>
+          ${backButtonHTML}
           <h1 class="text-3xl font-bold text-gray-800">
             <i class="fas fa-folder text-indigo-600 mr-3"></i>フォルダ管理
           </h1>
@@ -3696,10 +3706,24 @@ async function renderFoldersScreen() {
   `;
   
   // Attach listeners
-  document.getElementById('backToMenuButton').addEventListener('click', () => {
-    currentState.screen = 'menu';
-    renderScreen();
-  });
+  const backToAudioResultButton = document.getElementById('backToAudioResultButton');
+  const backToMenuButton = document.getElementById('backToMenuButton');
+  
+  if (backToAudioResultButton) {
+    backToAudioResultButton.addEventListener('click', () => {
+      currentState.previousScreen = null; // Clear previous screen
+      currentState.screen = 'audioResult';
+      renderScreen();
+    });
+  }
+  
+  if (backToMenuButton) {
+    backToMenuButton.addEventListener('click', () => {
+      currentState.previousScreen = null; // Clear previous screen
+      currentState.screen = 'menu';
+      renderScreen();
+    });
+  }
   
   document.getElementById('createFolderButton').addEventListener('click', () => {
     createNewFolder();
