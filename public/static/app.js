@@ -1303,9 +1303,13 @@ function renderReviewScreen() {
       </div>
 
       <div class="flex gap-4">
+        <button id="backToQuestionSettingsButton"
+                class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
+          <i class="fas fa-arrow-left mr-2"></i>戻る
+        </button>
         <button id="backToInputButton"
-                class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition">
-          <i class="fas fa-arrow-left mr-2"></i>最初から作成
+                class="bg-gray-300 text-gray-700 px-4 py-3 rounded-lg font-medium hover:bg-gray-400 transition text-sm">
+          <i class="fas fa-home mr-2"></i>最初から
         </button>
         <button id="regenerateButton"
                 class="flex-1 bg-yellow-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-yellow-600 transition">
@@ -1324,6 +1328,7 @@ function renderReviewScreen() {
 
 // Attach listeners for review screen
 function attachReviewScreenListeners() {
+  const backToQuestionSettingsButton = document.getElementById('backToQuestionSettingsButton');
   const backToInputButton = document.getElementById('backToInputButton');
   const regenerateButton = document.getElementById('regenerateButton');
   const generateAudioButton = document.getElementById('generateAudioButton');
@@ -1386,6 +1391,13 @@ function attachReviewScreenListeners() {
     currentState.narratorSettings.voiceStyle = e.target.value;
   });
   
+  // Back to question settings (1つ前に戻る)
+  backToQuestionSettingsButton.addEventListener('click', () => {
+    currentState.screen = 'questionSettings';
+    renderScreen();
+  });
+  
+  // Back to input (最初から作り直す)
   backToInputButton.addEventListener('click', () => {
     currentState.screen = 'input';
     currentState.generatedScript = '';
