@@ -853,36 +853,36 @@ const getGoogleTTSVoice = (accent: string, gender: string = 'male', voiceStyle: 
     'Irish': {
       'male': {
         'neutral': { 
-          languageCode: 'en-IE', 
-          standard: 'en-IE-Standard-A', 
-          ssml: 'en-IE-Standard-A' 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Journey-D', 
+          ssml: 'en-GB-Wavenet-D' 
         },
         'warm': {
-          languageCode: 'en-IE',
-          standard: 'en-IE-Standard-A',
-          ssml: 'en-IE-Standard-A'
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-B'
         },
         'calm': {
-          languageCode: 'en-IE',
-          standard: 'en-IE-Standard-A',
-          ssml: 'en-IE-Standard-A'
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-D'
         }
       },
       'female': {
         'neutral': { 
-          languageCode: 'en-IE', 
-          standard: 'en-IE-Standard-A', 
-          ssml: 'en-IE-Standard-A' 
+          languageCode: 'en-GB', 
+          standard: 'en-GB-Journey-F', 
+          ssml: 'en-GB-Wavenet-F' 
         },
         'warm': {
-          languageCode: 'en-IE',
-          standard: 'en-IE-Standard-A',
-          ssml: 'en-IE-Standard-A'
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-A'
         },
         'calm': {
-          languageCode: 'en-IE',
-          standard: 'en-IE-Standard-A',
-          ssml: 'en-IE-Standard-A'
+          languageCode: 'en-GB',
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-C'
         }
       }
     },
@@ -890,35 +890,35 @@ const getGoogleTTSVoice = (accent: string, gender: string = 'male', voiceStyle: 
       'male': {
         'neutral': { 
           languageCode: 'en-GB', 
-          standard: 'en-GB-Standard-B', 
-          ssml: 'en-GB-Standard-B' 
+          standard: 'en-GB-Journey-D', 
+          ssml: 'en-GB-Wavenet-D' 
         },
         'warm': {
           languageCode: 'en-GB',
-          standard: 'en-GB-Standard-B',
-          ssml: 'en-GB-Standard-B'
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-B'
         },
         'calm': {
           languageCode: 'en-GB',
-          standard: 'en-GB-Standard-B',
-          ssml: 'en-GB-Standard-B'
+          standard: 'en-GB-Journey-D',
+          ssml: 'en-GB-Wavenet-D'
         }
       },
       'female': {
         'neutral': { 
           languageCode: 'en-GB', 
-          standard: 'en-GB-Standard-A', 
-          ssml: 'en-GB-Standard-A' 
+          standard: 'en-GB-Journey-F', 
+          ssml: 'en-GB-Wavenet-F' 
         },
         'warm': {
           languageCode: 'en-GB',
-          standard: 'en-GB-Standard-A',
-          ssml: 'en-GB-Standard-A'
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-A'
         },
         'calm': {
           languageCode: 'en-GB',
-          standard: 'en-GB-Standard-A',
-          ssml: 'en-GB-Standard-A'
+          standard: 'en-GB-Journey-F',
+          ssml: 'en-GB-Wavenet-C'
         }
       }
     }
