@@ -1203,7 +1203,7 @@ app.post('/api/generate-audio', async (c) => {
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return generateTTS(text, voiceConfig, speakingRate, ssmlInstructions, retryCount + 1)
         } else if (response.status === 429) {
-          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n5回のリトライでも失敗しました。\n\n💡 解決方法:\n・1〜2分待ってから再度お試しください\n・ページをリロードして再試行してください\n・セグメント数を減らしてください')
+          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n5回のリトライでも失敗しました。\n\n💡 解決方法：\n１分程度待ってから再度お試しいただくと、多くのケースで復帰します。')
         }
         
         // Check for authentication error
@@ -1459,7 +1459,7 @@ app.post('/api/generate-audio', async (c) => {
     if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('無料枠')) {
       errorMessage = '⚠️ Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。\n月100万文字（約1万分の音声）まで無料です。'
     } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-      errorMessage = '⚠️ Google TTS APIのレート制限に達しました。少し時間をおいてから再度お試しください。'
+      errorMessage = '⚠️ Google TTS APIのレート制限に達しました。\n\n💡 １分程度待ってから再度お試しいただくと、多くのケースで復帰します。'
     }
     
     console.log('🎵 === Returning error response ===')
@@ -1748,7 +1748,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=8259a35e"></script>
+        <script src="/static/app.js?hash=85251731"></script>
     </body>
     </html>
   `)

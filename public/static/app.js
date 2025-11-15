@@ -1821,7 +1821,19 @@ async function generateAudioFromParsedLines() {
     console.error('❌ Error data:', error.response?.data);
     
     const errorMessage = error.response?.data?.error || error.message || '不明なエラー';
-    alert('❌ 音声生成エラー\n\n' + errorMessage + '\n\nエラー詳細はコンソールをご確認ください。');
+    
+    // Check if it's a rate limit error
+    const isRateLimitError = errorMessage.includes('レート制限') || errorMessage.includes('Rate limit') || errorMessage.includes('429');
+    
+    let displayMessage = '❌ 音声生成エラー\n\n' + errorMessage;
+    
+    if (isRateLimitError) {
+      displayMessage += '\n\n💡 解決方法：\n１分程度待ってから再度お試しいただくと、多くのケースで復帰します。';
+    } else {
+      displayMessage += '\n\n💡 １分程度待ってから再度お試しいただくと、多くのケースで復帰します。';
+    }
+    
+    alert(displayMessage);
     currentState.screen = 'review';
     renderScreen();
   }
@@ -2771,7 +2783,9 @@ function showAudioResult() {
         
         // Show subtle error notification (don't interrupt user with alert)
         if (errorMessage.includes('レート制限') || errorMessage.includes('Rate limit')) {
-          console.warn('⏱️ レート制限に達しました。30秒待ってから再度お試しください。');
+          console.warn('⏱️ レート制限に達しました。１分程度待ってから再度お試しください。');
+        } else {
+          console.warn('⚠️ 音声再生成エラー。１分程度待ってから再度お試しください。');
         }
       } finally {
         // Restore segment opacity
