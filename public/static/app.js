@@ -2304,7 +2304,16 @@ function showAudioResult() {
       }
     } catch (error) {
       console.error('Regeneration error:', error);
-      alert('音声再生成中にエラーが発生しました: ' + (error.response?.data?.error || error.message));
+      const errorMessage = error.response?.data?.error || error.message || '不明なエラー';
+      
+      // Show user-friendly error message
+      if (errorMessage.includes('レート制限') || errorMessage.includes('Rate limit')) {
+        alert('⏱️ 音声生成のレート制限に達しました\n\n30秒〜1分待ってから再度お試しください。\n\n多数のセグメントを連続で編集すると発生する場合があります。');
+      } else if (errorMessage.includes('無料枠') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        alert('⚠️ Google TTS APIの無料枠を使い切りました\n\n管理者にお問い合わせください。');
+      } else {
+        alert('❌ 音声再生成エラー\n\n' + errorMessage + '\n\nページをリロードして再度お試しください。');
+      }
     } finally {
       // Restore button
       if (playButton && originalPlayButtonHTML) {
@@ -2752,7 +2761,13 @@ function showAudioResult() {
         }
       } catch (error) {
         console.error('Regeneration error:', error);
-        console.error('音声再生成中にエラーが発生しました:', error.response?.data?.error || error.message);
+        const errorMessage = error.response?.data?.error || error.message || '不明なエラー';
+        console.error('音声再生成中にエラーが発生しました:', errorMessage);
+        
+        // Show subtle error notification (don't interrupt user with alert)
+        if (errorMessage.includes('レート制限') || errorMessage.includes('Rate limit')) {
+          console.warn('⏱️ レート制限に達しました。30秒待ってから再度お試しください。');
+        }
       } finally {
         // Restore segment opacity
         if (segmentDiv) {

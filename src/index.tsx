@@ -1126,8 +1126,8 @@ app.post('/api/generate-audio', async (c) => {
       return `<speak>${escapedSSML}</speak>`
     }
     
-    // Helper function to generate TTS audio with SSML support
-    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string) => {
+    // Helper function to generate TTS audio with SSML support and retry logic
+    const generateTTS = async (text: string, voiceConfig: any, speakingRate: number, ssmlInstructions?: string, retryCount = 0) => {
       let inputContent: any
       const useSSML = ssmlInstructions && ssmlInstructions.trim() !== ''
       
@@ -1169,6 +1169,9 @@ app.post('/api/generate-audio', async (c) => {
       console.log('📤 TTS Request:', JSON.stringify(ttsRequest, null, 2))
       console.log('🎤 Voice Name Used:', voiceName, '| Language:', voiceConfig.languageCode)
       console.log('📝 Text length:', ttsRequest.input.text?.length || ttsRequest.input.ssml?.length || 0, 'characters')
+      if (retryCount > 0) {
+        console.log(`🔄 Retry attempt: ${retryCount}/3`)
+      }
       
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_API_KEY}`,
@@ -1188,17 +1191,27 @@ app.post('/api/generate-audio', async (c) => {
         
         // Check for quota exhausted error
         if (errorData.error?.code === 429 || errorData.error?.status === 'RESOURCE_EXHAUSTED') {
-          throw new Error('Google TTS APIの無料枠を使い切りました。新しいAPIキーが必要です。月100万文字（約1万分の音声）まで無料です。')
+          throw new Error('⚠️ Google TTS APIの無料枠を使い切りました\n\n月100万文字（約1万分の音声）まで無料です。\n新しいAPIキーが必要です。\n\nまたは、数分待ってから再度お試しください。')
         }
         
-        // Check for rate limit error
-        if (response.status === 429) {
-          throw new Error('Google TTS APIのレート制限に達しました。少し時間をおいてから再度お試しください。')
+        // Check for rate limit error (too many requests) - retry with exponential backoff
+        if (response.status === 429 && retryCount < 3) {
+          const waitTime = Math.pow(2, retryCount) * 1000 // 1s, 2s, 4s
+          console.log(`⏱️ Rate limit hit, waiting ${waitTime}ms before retry ${retryCount + 1}/3...`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return generateTTS(text, voiceConfig, speakingRate, ssmlInstructions, retryCount + 1)
+        } else if (response.status === 429) {
+          throw new Error('⏱️ Google TTS APIのレート制限に達しました\n\n1分間に100リクエストまでの制限があります。\n\n💡 解決方法:\n・30秒〜1分待ってから再度お試しください\n・ページをリロードして再試行してください')
+        }
+        
+        // Check for authentication error
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('🔑 Google TTS APIキーのエラー\n\nAPIキーが無効または期限切れです。\n管理者にお問い合わせください。')
         }
         
         // Generic error with detailed message
         const errorMessage = errorData.error?.message || errorData.message || 'Unknown error'
-        throw new Error(`Google TTS API エラー (${response.status}): ${errorMessage}`)
+        throw new Error(`❌ Google TTS API エラー (${response.status}): ${errorMessage}\n\nページをリロードして再度お試しください。`)
       }
       
       const data = await response.json()
@@ -1711,7 +1724,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=c3171278ee0add67a49b7a4548383ab0"></script>
+        <script src="/static/app.js?hash=d730dae3dc76bd7e4b954d6688509c2a"></script>
     </body>
     </html>
   `)
