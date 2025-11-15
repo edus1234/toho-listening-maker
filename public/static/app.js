@@ -1816,7 +1816,12 @@ async function generateAudioFromParsedLines() {
       renderScreen();
     }
   } catch (error) {
-    alert('音声生成エラー: ' + error.message);
+    console.error('❌ Audio generation error:', error);
+    console.error('❌ Error response:', error.response);
+    console.error('❌ Error data:', error.response?.data);
+    
+    const errorMessage = error.response?.data?.error || error.message || '不明なエラー';
+    alert('❌ 音声生成エラー\n\n' + errorMessage + '\n\nエラー詳細はコンソールをご確認ください。');
     currentState.screen = 'review';
     renderScreen();
   }

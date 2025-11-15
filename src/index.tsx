@@ -1411,15 +1411,32 @@ app.post('/api/generate-audio', async (c) => {
     console.log('✅ Step 7: All audio generation completed successfully!')
     console.log('   - Total segments:', audioSegments.length)
     
-    // Return all segments - client will handle playback
-    console.log('🎵 === Returning successful response ===')
-    return c.json({
+    // Calculate total response size
+    const responseData = {
       success: true,
       audioSegments: audioSegments,
       speakers: speakers,
       segmentCount: audioSegments.length,
       message: '音声生成が完了しました'
-    })
+    }
+    
+    const responseJson = JSON.stringify(responseData)
+    const responseSizeMB = (responseJson.length / 1024 / 1024).toFixed(2)
+    console.log('📊 Response size:', responseSizeMB, 'MB')
+    console.log('📊 Response length:', responseJson.length, 'characters')
+    
+    // Cloudflare Workers has a 10MB response limit
+    if (responseJson.length > 10 * 1024 * 1024) {
+      console.error('❌ Response size exceeds 10MB limit!')
+      return c.json({
+        success: false,
+        error: 'レスポンスサイズが大きすぎます（10MB制限）。セグメント数を減らしてください。'
+      }, 413)
+    }
+    
+    // Return all segments - client will handle playback
+    console.log('🎵 === Returning successful response ===')
+    return c.json(responseData)
     
   } catch (error: any) {
     console.error('❌ === CAUGHT ERROR IN /api/generate-audio ===')
@@ -1724,7 +1741,7 @@ app.get('/', (c) => {
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-        <script src="/static/app.js?hash=d730dae3dc76bd7e4b954d6688509c2a"></script>
+        <script src="/static/app.js?hash=09744f9506d721ebe8842168b8c61b9b"></script>
     </body>
     </html>
   `)
