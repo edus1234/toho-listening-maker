@@ -379,10 +379,7 @@ function renderNationalitySelectors(numSpeakers, speakerSettings) {
     { value: 'US', label: 'アメリカ' },
     { value: 'UK', label: 'イギリス' },
     { value: 'Australian', label: 'オーストラリア' },
-    { value: 'Canadian', label: 'カナダ' },
-    { value: 'Indian', label: 'インド' },
-    { value: 'Irish', label: 'アイルランド' },
-    { value: 'Scottish', label: 'スコットランド' }
+    { value: 'Indian', label: 'インド' }
   ];
   
   const genderOptions = [
@@ -715,7 +712,7 @@ function attachInputScreenListeners() {
     
     currentState.speakers = speakerNames.map((name, index) => ({
       name: name,
-      accent: ['US', 'UK', 'Australian', 'Canadian', 'Indian'][index % 5],
+      accent: ['US', 'UK', 'Australian', 'Indian'][index % 4],
       gender: index % 2 === 0 ? 'FEMALE' : 'MALE',
       speed: 1.0
     }));
@@ -1275,10 +1272,7 @@ function renderReviewScreen() {
               <option value="US" ${(currentState.narratorSettings?.accent || 'US') === 'US' ? 'selected' : ''}>アメリカ</option>
               <option value="UK" ${(currentState.narratorSettings?.accent || 'US') === 'UK' ? 'selected' : ''}>イギリス</option>
               <option value="Australian" ${(currentState.narratorSettings?.accent || 'US') === 'Australian' ? 'selected' : ''}>オーストラリア</option>
-              <option value="Canadian" ${(currentState.narratorSettings?.accent || 'US') === 'Canadian' ? 'selected' : ''}>カナダ</option>
               <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
-              <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
-              <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
             </select>
           </div>
           <div>
@@ -1517,10 +1511,7 @@ function renderSpeakerSettingsScreen() {
             <option value="US" ${speaker.accent === 'US' ? 'selected' : ''}>アメリカ</option>
             <option value="UK" ${speaker.accent === 'UK' ? 'selected' : ''}>イギリス</option>
             <option value="Australian" ${speaker.accent === 'Australian' ? 'selected' : ''}>オーストラリア</option>
-            <option value="Canadian" ${speaker.accent === 'Canadian' ? 'selected' : ''}>カナダ</option>
             <option value="Indian" ${speaker.accent === 'Indian' ? 'selected' : ''}>インド</option>
-            <option value="Irish" ${speaker.accent === 'Irish' ? 'selected' : ''}>アイルランド</option>
-            <option value="Scottish" ${speaker.accent === 'Scottish' ? 'selected' : ''}>スコットランド</option>
           </select>
         </div>
         <div>
@@ -1566,10 +1557,7 @@ function renderSpeakerSettingsScreen() {
             <option value="US" ${(currentState.narratorSettings?.accent || 'US') === 'US' ? 'selected' : ''}>アメリカ</option>
             <option value="UK" ${(currentState.narratorSettings?.accent || 'US') === 'UK' ? 'selected' : ''}>イギリス</option>
             <option value="Australian" ${(currentState.narratorSettings?.accent || 'US') === 'Australian' ? 'selected' : ''}>オーストラリア</option>
-            <option value="Canadian" ${(currentState.narratorSettings?.accent || 'US') === 'Canadian' ? 'selected' : ''}>カナダ</option>
             <option value="Indian" ${(currentState.narratorSettings?.accent || 'US') === 'Indian' ? 'selected' : ''}>インド</option>
-            <option value="Irish" ${(currentState.narratorSettings?.accent || 'US') === 'Irish' ? 'selected' : ''}>アイルランド</option>
-            <option value="Scottish" ${(currentState.narratorSettings?.accent || 'US') === 'Scottish' ? 'selected' : ''}>スコットランド</option>
           </select>
         </div>
         <div>
